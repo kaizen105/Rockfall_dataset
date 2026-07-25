@@ -1,6 +1,8 @@
 # Rockfall Dataset Generation and Analysis
 
-This repository contains a complete, physics-informed pipeline for creating, merging, and analyzing realistic synthetic rockfall event data. The core of this dataset is anchored in **real-world geospatial data**, which is then combined with historical weather conditions and simulated sensor readings.
+[![Hugging Face Dataset](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Dataset-blue)](https://huggingface.co/datasets/Kaizen696/noamundi-rockfall-simulation-dataset)
+
+This repository contains a complete, physics-informed pipeline for creating, merging, and analyzing realistic synthetic rockfall event data. The core of this dataset is anchored in **real-world geospatial data**, which is then combined with historical weather conditions and simulated sensor readings. You can access the final generated dataset directly on Hugging Face using the link above.
 
 ## 🌍 The Workflow: How the Data Was Created
 
