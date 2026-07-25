@@ -107,7 +107,7 @@ def generate_sensor_data() -> None:
         is_blasting_hour = (hour_of_day >= 14) & (hour_of_day <= 16)
         blast_spikes = np.where(
             is_blasting_hour & (np.random.random(len(df_loc)) < 0.05),
-            np.random.uniform(10, 30, size=len(df_loc)),
+            np.random.uniform(5, 12, size=len(df_loc)),
             0,
         )
         df_loc["Vibration_mm_s"] = base_vib + blast_spikes
@@ -115,23 +115,33 @@ def generate_sensor_data() -> None:
         # 3. Events and Near Misses
         df_loc["Rockfall_Event"] = 0
 
-        high_pressure_times = df_loc.index[df_loc["pore_pressure_proxy"] > 20].tolist()
+        # Target only the most severe rain windows (top 5% or > 20mm)
+        threshold = max(20.0, np.percentile(df_loc["pore_pressure_proxy"], 95))
+        high_pressure_times = df_loc.index[df_loc["pore_pressure_proxy"] > threshold].tolist()
         all_times = df_loc.index.tolist()
 
-        num_events = 5
-        num_near_misses = 3
+        # Randomize event counts to remove the 'too clean' uniform distribution
+        num_events = max(1, np.random.poisson(5))
+        num_near_misses = np.random.poisson(3)
         event_times = []
         near_miss_times = []
 
+        # Bias sampling aggressively toward the absolute highest pore pressure peaks
+        if high_pressure_times:
+            hp_probs = df_loc.loc[high_pressure_times, "pore_pressure_proxy"].values
+            # Exponentiate to heavily penalize moderate rain and exclusively favor the peaks
+            hp_probs = hp_probs**4
+            hp_probs = hp_probs / hp_probs.sum()
+
         for _ in range(num_events):
             if random.random() < 0.8 and high_pressure_times:
-                event_times.append(random.choice(high_pressure_times))
+                event_times.append(np.random.choice(high_pressure_times, p=hp_probs))
             else:
                 event_times.append(random.choice(all_times))
 
         for _ in range(num_near_misses):
             if random.random() < 0.8 and high_pressure_times:
-                near_miss_times.append(random.choice(high_pressure_times))
+                near_miss_times.append(np.random.choice(high_pressure_times, p=hp_probs))
             else:
                 near_miss_times.append(random.choice(all_times))
 
@@ -146,7 +156,9 @@ def generate_sensor_data() -> None:
             window = random.choice([24, 48, 72])
             start_idx = max(0, idx_ev - window)
             time_to_event = (df_loc.index[idx_ev] - df_loc.index[start_idx:idx_ev]).total_seconds() / 3600
-            creep = 15 * np.exp(-0.15 * time_to_event)
+            rain_intensity = df_loc["pore_pressure_proxy"].iloc[idx_ev]
+            peak_multiplier = np.clip(rain_intensity / 25.0, 0.5, 2.5)
+            creep = (15 * peak_multiplier) * np.exp(-0.15 * time_to_event)
             df_loc.iloc[start_idx:idx_ev, df_loc.columns.get_loc("Displacement_Rate_mm_h")] += creep[::-1]
 
             # Post-failure (Aftershocks and stabilization)
@@ -156,7 +168,7 @@ def generate_sensor_data() -> None:
             decay_disp = 5 * np.exp(-0.1 * time_since_event)
             df_loc.iloc[idx_ev:end_idx, df_loc.columns.get_loc("Displacement_Rate_mm_h")] += decay_disp
 
-            aftershock_vib = np.random.uniform(5, 15, size=end_idx - idx_ev) * np.exp(-0.05 * time_since_event)
+            aftershock_vib = np.random.uniform(12, 25, size=end_idx - idx_ev) * np.exp(-0.05 * time_since_event)
             df_loc.iloc[idx_ev:end_idx, df_loc.columns.get_loc("Vibration_mm_s")] += aftershock_vib
 
         # Apply Near-Miss Physics
@@ -168,7 +180,9 @@ def generate_sensor_data() -> None:
             window = 48
             start_idx = max(0, idx_nm - window)
             time_to_nm = (df_loc.index[idx_nm] - df_loc.index[start_idx:idx_nm]).total_seconds() / 3600
-            creep = 5 * np.exp(-0.2 * time_to_nm)
+            rain_intensity = df_loc["pore_pressure_proxy"].iloc[idx_nm]
+            peak_multiplier = np.clip(rain_intensity / 25.0, 0.5, 2.5)
+            creep = (5 * peak_multiplier) * np.exp(-0.2 * time_to_nm)
             df_loc.iloc[start_idx:idx_nm, df_loc.columns.get_loc("Displacement_Rate_mm_h")] += creep[::-1]
 
             post_window = 48

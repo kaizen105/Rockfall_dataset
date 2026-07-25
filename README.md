@@ -23,6 +23,22 @@ Using `src/data/create_sensor_data.py`, synthetic IoT sensor data (vibration and
 - Blasting machinery noise
 - Pre-failure and post-failure displacement curves for rockfall events.
 
+### ⚠️ Data Reality & Simulation Assumptions
+
+To ensure transparency for machine learning applications, it is critical to distinguish between real-world observations and synthetic engineering in this dataset:
+
+**What is REAL:**
+- **Terrain & Geometry:** Slope, aspect, ruggedness, and roughness are derived from real-world OpenTopography DEM data.
+- **Weather:** Historical precipitation, temperature, and wind data are real meteorological records.
+
+**What is SIMULATED (Synthetic):**
+- **Sensor Readings:** Displacement and vibration values are synthetically generated using physical heuristics (e.g., sine waves for thermal cycles, lagged rainfall multipliers for creep).
+- **Event Occurrence & Timing:** Rockfalls are artificially injected. 80% of events are constrained to occur during extreme rain events (top 5% of rainfall windows), with timestamps mathematically heavily weighted towards the absolute peak of the storm.
+- **Event Physics:** The pre-failure displacement ramp is a mathematically scaled exponential curve, bounded by physical assumptions based on the rainfall intensity.
+- **Event Distribution:** Event counts per location are randomized using a Poisson distribution (mean=5) to ensure natural variance, avoiding artificially uniform counts.
+
+*Note: While event placement aggressively targets peak storm hours to model a "rainfall-triggered" causal chain, the event occurrences themselves are synthetically constructed, not empirical observations.*
+
 ### Step 4: Final Consolidation
 Using `src/data/final_dataset.py`, the geospatial QGIS data, the historical weather data, and the synthetic sensor data are all merged into a single master dataset (`data/final_master_dataset.csv`).
 
