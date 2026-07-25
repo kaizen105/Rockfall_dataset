@@ -1,6 +1,30 @@
 # Rockfall Dataset Generation and Analysis
 
-This repository contains a complete pipeline for generating, merging, and analyzing realistic synthetic rockfall event data. It creates a robust master dataset by combining static geographical features, historical weather conditions (via the Open-Meteo API), and realistically simulated sensor readings.
+This repository contains a complete, physics-informed pipeline for creating, merging, and analyzing realistic synthetic rockfall event data. The core of this dataset is anchored in **real-world geospatial data**, which is then combined with historical weather conditions and simulated sensor readings.
+
+## 🌍 The Workflow: How the Data Was Created
+
+### Step 1: Topographical Data (OpenTopography & QGIS)
+The foundational geometry dataset was derived using **OpenTopography** to obtain the initial Digital Elevation Model (DEM). **QGIS** was then used to process this elevation data and extract critical terrain features at various locations, including:
+- **Slope**
+- **Aspect**
+- **Ruggedness**
+- **Roughness**
+
+These features were exported from QGIS into `data/geometry_dataset.csv` and form the physical basis for the simulated rockfall events.
+
+### Step 2: Weather Data Integration (Open-Meteo API)
+Using `src/data/get_weather_data.py`, historical weather data for the corresponding location (e.g., Noamundi) was fetched using the Open-Meteo API. This includes temperatures, precipitation sums, and wind speeds, while also engineering features like 3-day and 7-day rolling rainfall sums.
+
+### Step 3: Physics-Informed Sensor Simulation
+Using `src/data/create_sensor_data.py`, synthetic IoT sensor data (vibration and displacement) was generated. The script physically models:
+- Thermal cycles
+- Rain-induced slope creep (using the precipitation data)
+- Blasting machinery noise
+- Pre-failure and post-failure displacement curves for rockfall events.
+
+### Step 4: Final Consolidation
+Using `src/data/final_dataset.py`, the geospatial QGIS data, the historical weather data, and the synthetic sensor data are all merged into a single master dataset (`data/final_master_dataset.csv`).
 
 ## 📂 Repository Structure
 
@@ -9,12 +33,14 @@ Rockfall_AI_Project/
 ├── src/
 │   ├── data/
 │   │   ├── get_weather_data.py       # Fetches historical weather data
-│   │   ├── create_sensor_data.py     # Generates synthetic sensor data based on physics
+│   │   ├── create_sensor_data.py     # Generates synthetic sensor data
 │   │   └── final_dataset.py          # Merges all data into a master dataset
 │   └── analysis/
 │       ├── check.py                  # Validates the final dataset
 │       └── plot_verification.py      # Plots timelines of rockfall events
-├── data/                             # Generated datasets (.csv)
+├── data/                             # Generated datasets & QGIS exports
+│   ├── geometry_dataset.csv          # Exported from QGIS (Slope, Ruggedness, etc.)
+│   └── geometry_dataset.qmd          # QGIS metadata file
 ├── results/                          # Output visual plots and heatmaps
 ├── notebooks/                        # Exploratory Jupyter Notebooks
 ├── requirements.txt                  # Python dependencies
@@ -46,10 +72,4 @@ Rockfall_AI_Project/
    python src/analysis/check.py
    python src/analysis/plot_verification.py
    ```
-   *Note: Analysis scripts will automatically save validation metrics and plots to the `results/` folder.*
-
-## 📊 Features
-
-- **Physics-Informed Simulations:** Generates thermal cycle displacements, rain-induced creep, and blasting vibrations.
-- **API Integration:** Pulls accurate real-world historical daily weather.
-- **Robust Consolidation:** Cleans and normalizes geographical coordinates for dashboard applications.
+   *Analysis scripts will automatically save validation metrics and plots to the `results/` folder.*
