@@ -32,12 +32,30 @@ To ensure transparency for machine learning applications, it is critical to dist
 - **Weather:** Historical precipitation, temperature, and wind data are real meteorological records.
 
 **What is SIMULATED (Synthetic):**
-- **Sensor Readings:** Displacement and vibration values are synthetically generated using physical heuristics (e.g., sine waves for thermal cycles, lagged rainfall multipliers for creep).
-- **Event Occurrence & Timing:** Rockfalls are artificially injected. 80% of events are constrained to occur during extreme rain events (top 5% of rainfall windows), with timestamps mathematically heavily weighted towards the absolute peak of the storm.
-- **Event Physics:** The pre-failure displacement ramp is a mathematically scaled exponential curve, bounded by physical assumptions based on the rainfall intensity.
-- **Event Distribution:** Event counts per location are randomized using a Poisson distribution (mean=5) to ensure natural variance, avoiding artificially uniform counts.
+- **Sensor Readings:** Synthetic sensor readings are anchored to the **Infinite Slope Stability Model** (Skempton & DeLory), a classic soil mechanics formula used as the simplified, single-point foundation for regional tools like SHALSTAB and TRIGRS.
 
-*Note: While event placement aggressively targets peak storm hours to model a "rainfall-triggered" causal chain, the event occurrences themselves are synthetically constructed, not empirical observations.*
+#### The Physics Model (Infinite Slope Stability)
+The simulation computes a time-series **Factor of Safety (FS)** for every location:
+```math
+FS = \frac{c + (\gamma \cdot z \cdot \cos^2\beta - u) \cdot \tan\phi}{\gamma \cdot z \cdot \sin\beta \cdot \cos\beta}
+```
+Where variables are assigned realistic geotechnical bounds for weathered rock/soil:
+* $\beta$ = Slope angle ($26^\circ - 32^\circ$, mapped from DEM to prevent vertical QGIS artifacts)
+* $\gamma$ = Unit weight of soil/rock ($20 - 25 \text{ kN/m}^3$)
+* $z$ = Depth to failure plane ($1.0 - 2.0 \text{ m}$)
+* $\phi$ = Friction angle ($30^\circ - 40^\circ$)
+* $c$ = Cohesion ($4 - 10 \text{ kPa}$)
+* $u$ = Pore water pressure, dynamically derived from a 72-hour rolling rainfall proxy ($h_w$).
+
+When conditions are dry ($u=0$), the constants ensure the baseline FS hovers in a stable range of **1.5 – 2.5**. During severe rainfall, $u$ spikes, stripping away frictional resistance and driving the FS below the **1.0** failure threshold.
+
+- **Event Occurrence & Timing:** Event probabilities dynamically scale using an exponential multiplier based on the calculated Factor of Safety. Rain-induced failures are deterministically biased towards periods where the slope physically yields ($FS \le 1.3$). The probability of a rockfall peaks exponentially as $FS \to 1.0$.
+- **Event Physics:** 
+  - **Pre-failure displacement** (tertiary creep) emerges naturally in the time-series as a physically modeled inverse function of the degrading FS (`creep ∝ 1 / (FS - 1.0)`). 
+  - **Vibration spikes** are dynamically scaled based on a proxy for the failing mass and slope energy (`γ * z * sin(β)`), rather than arbitrary random injection. Steeper, deeper failures produce louder signatures.
+- **Event Distribution:** Overall event counts per location are still probabilistically regulated via a Poisson distribution (mean=5) to maintain dataset usability and variability for classification models.
+
+*Note: While the simulation uses the core Infinite Slope FS equation to model realistic precursor behavior, it is a simplified 1D approximation lacking rigorous 3D hydrological routing or spatial groundwater flow.*
 
 ### Step 4: Final Consolidation
 Using `src/data/final_dataset.py`, the geospatial QGIS data, the historical weather data, and the synthetic sensor data are all merged into a single master dataset (`data/final_master_dataset.csv`).

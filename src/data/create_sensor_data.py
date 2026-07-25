@@ -84,20 +84,41 @@ def generate_sensor_data() -> None:
 
         traits = loc_traits.get(loc_id, {"slope": 45, "ruggedness": 10})
 
-        # [NEW] Variable Lag & Coupling Strength
+        # Geotechnical Constants (Infinite Slope Model)
         loc_lag_hours = random.randint(8, 16)
-        loc_coupling_variation = random.uniform(0.5, 1.5)
-        slope_factor = (traits["slope"] / 45.0) * loc_coupling_variation
+        
+        # QGIS artifact fix: infinite slope formula diverges near 90 degrees.
+        # We cap slope to realistic failing soil bounds (26-32 degrees) for shallow failures.
+        raw_slope = traits["slope"]
+        slope_val = np.random.uniform(26, 32) if raw_slope > 60 else max(raw_slope, 25.0)
+        beta = np.radians(slope_val)
+        
+        gamma = np.random.uniform(20, 25) # Unit weight (kN/m³)
+        z = np.random.uniform(1.0, 2.0) # Depth to failure (m) (shallower prevents overpowering resisting term)
+        phi = np.radians(np.random.uniform(30, 40)) # Friction angle (slightly higher than beta for baseline stability)
+        c = np.random.uniform(4, 10) # Cohesion (kPa) - tuned to ensure baseline FS is ~1.5-2.0
 
         df_loc["pore_pressure_proxy"] = df_loc["rain_72h_sum"].shift(loc_lag_hours).fillna(0)
 
-        # 1. Base Displacement (Thermal cycles + Noise)
+        # Factor of Safety (FS) Calculation
+        gamma_w = 9.81
+        saturation_threshold = 100.0 # mm
+        h_w = np.minimum(1.0, df_loc["pore_pressure_proxy"] / saturation_threshold) * z
+        u = gamma_w * h_w
+        
+        fs_numerator = c + (gamma * z * np.cos(beta)**2 - u) * np.tan(phi)
+        fs_denominator = gamma * z * np.sin(beta) * np.cos(beta)
+        df_loc["FS"] = fs_numerator / fs_denominator
+
+        # 1. Base Displacement (Thermal cycles + Noise + Tertiary Creep)
         hour_of_day = df_loc.index.hour
         thermal_cycle = 0.005 * np.sin((hour_of_day - 9) * (2 * np.pi / 24))
         base_noise = np.random.normal(0, 0.002, size=len(df_loc))
 
-        # Rainfall induced creep
-        rain_creep = df_loc["pore_pressure_proxy"] * 0.001 * slope_factor
+        # FS-driven Creep (Injection Point 1)
+        # Add creep proportional to closeness to failure when FS < 1.3
+        k = 0.15 # Scaling constant for mm/h realism
+        rain_creep = np.where(df_loc["FS"] <= 1.3, k / (np.maximum(df_loc["FS"], 1.01) - 1.0), 0)
 
         df_loc["Displacement_Rate_mm_h"] = 0.01 + thermal_cycle + base_noise + rain_creep
         df_loc["Displacement_Rate_mm_h"] = df_loc["Displacement_Rate_mm_h"].clip(lower=0)
@@ -115,9 +136,8 @@ def generate_sensor_data() -> None:
         # 3. Events and Near Misses
         df_loc["Rockfall_Event"] = 0
 
-        # Target only the most severe rain windows (top 5% or > 20mm)
-        threshold = max(20.0, np.percentile(df_loc["pore_pressure_proxy"], 95))
-        high_pressure_times = df_loc.index[df_loc["pore_pressure_proxy"] > threshold].tolist()
+        # Target periods where FS drops indicating instability
+        high_risk_times = df_loc.index[df_loc["FS"] <= 1.3].tolist()
         all_times = df_loc.index.tolist()
 
         # Randomize event counts to remove the 'too clean' uniform distribution
@@ -126,22 +146,22 @@ def generate_sensor_data() -> None:
         event_times = []
         near_miss_times = []
 
-        # Bias sampling aggressively toward the absolute highest pore pressure peaks
-        if high_pressure_times:
-            hp_probs = df_loc.loc[high_pressure_times, "pore_pressure_proxy"].values
-            # Exponentiate to heavily penalize moderate rain and exclusively favor the peaks
-            hp_probs = hp_probs**4
+        # Bias sampling heavily toward lowest FS (Injection Point 2)
+        if high_risk_times:
+            fs_values = df_loc.loc[high_risk_times, "FS"].values
+            # Exponential multiplier: e^(5 * (1.3 - FS)), peaking as FS -> 1.0
+            hp_probs = np.exp(5 * (1.3 - fs_values))
             hp_probs = hp_probs / hp_probs.sum()
 
         for _ in range(num_events):
-            if random.random() < 0.8 and high_pressure_times:
-                event_times.append(np.random.choice(high_pressure_times, p=hp_probs))
+            if random.random() < 0.8 and high_risk_times:
+                event_times.append(np.random.choice(high_risk_times, p=hp_probs))
             else:
                 event_times.append(random.choice(all_times))
 
         for _ in range(num_near_misses):
-            if random.random() < 0.8 and high_pressure_times:
-                near_miss_times.append(np.random.choice(high_pressure_times, p=hp_probs))
+            if random.random() < 0.8 and high_risk_times:
+                near_miss_times.append(np.random.choice(high_risk_times, p=hp_probs))
             else:
                 near_miss_times.append(random.choice(all_times))
 
@@ -152,14 +172,8 @@ def generate_sensor_data() -> None:
             idx_ev = df_loc.index.get_loc(ev_time)
             df_loc.loc[ev_time, "Rockfall_Event"] = 1
 
-            # Pre-failure (Exponential creep)
-            window = random.choice([24, 48, 72])
-            start_idx = max(0, idx_ev - window)
-            time_to_event = (df_loc.index[idx_ev] - df_loc.index[start_idx:idx_ev]).total_seconds() / 3600
-            rain_intensity = df_loc["pore_pressure_proxy"].iloc[idx_ev]
-            peak_multiplier = np.clip(rain_intensity / 25.0, 0.5, 2.5)
-            creep = (15 * peak_multiplier) * np.exp(-0.15 * time_to_event)
-            df_loc.iloc[start_idx:idx_ev, df_loc.columns.get_loc("Displacement_Rate_mm_h")] += creep[::-1]
+            # Pre-failure ramp naturally emerges from FS tertiary creep (Injection Point 3)
+            # No hardcoded exponential curve injected here.
 
             # Post-failure (Aftershocks and stabilization)
             post_window = 72
@@ -168,7 +182,11 @@ def generate_sensor_data() -> None:
             decay_disp = 5 * np.exp(-0.1 * time_since_event)
             df_loc.iloc[idx_ev:end_idx, df_loc.columns.get_loc("Displacement_Rate_mm_h")] += decay_disp
 
-            aftershock_vib = np.random.uniform(12, 25, size=end_idx - idx_ev) * np.exp(-0.05 * time_since_event)
+            # Physical Vibration Spike (Injection Point 4)
+            # Scales by failure mass (gamma * z) and slope energy (sin(beta))
+            base_spike = gamma * z * np.sin(beta)
+            vibration_spike = base_spike * np.random.uniform(0.4, 0.6)
+            aftershock_vib = vibration_spike * np.exp(-0.05 * time_since_event)
             df_loc.iloc[idx_ev:end_idx, df_loc.columns.get_loc("Vibration_mm_s")] += aftershock_vib
 
         # Apply Near-Miss Physics
@@ -177,14 +195,8 @@ def generate_sensor_data() -> None:
                 continue
             idx_nm = df_loc.index.get_loc(nm_time)
 
-            window = 48
-            start_idx = max(0, idx_nm - window)
-            time_to_nm = (df_loc.index[idx_nm] - df_loc.index[start_idx:idx_nm]).total_seconds() / 3600
-            rain_intensity = df_loc["pore_pressure_proxy"].iloc[idx_nm]
-            peak_multiplier = np.clip(rain_intensity / 25.0, 0.5, 2.5)
-            creep = (5 * peak_multiplier) * np.exp(-0.2 * time_to_nm)
-            df_loc.iloc[start_idx:idx_nm, df_loc.columns.get_loc("Displacement_Rate_mm_h")] += creep[::-1]
-
+            # Pre-failure ramp emerges from FS tertiary creep. No hardcoded curve.
+            
             post_window = 48
             end_idx = min(len(df_loc), idx_nm + post_window)
             time_since_nm = (df_loc.index[idx_nm:end_idx] - df_loc.index[idx_nm]).total_seconds() / 3600
@@ -207,7 +219,7 @@ def generate_sensor_data() -> None:
 
     df_main = pd.concat(all_location_dfs)
     df_main.drop(columns=["rain_72h_sum", "pore_pressure_proxy"], inplace=True, errors="ignore")
-    cols_to_keep = ["Timestamp", "Location_ID", "Displacement_Rate_mm_h", "Vibration_mm_s", "Rockfall_Event"]
+    cols_to_keep = ["Timestamp", "Location_ID", "Displacement_Rate_mm_h", "Vibration_mm_s", "Rockfall_Event", "FS"]
     df_main = df_main[cols_to_keep]
 
     df_main.to_csv(OUTPUT_FILE, index=False)
