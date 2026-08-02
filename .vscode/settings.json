@@ -1,5 +1,5 @@
 {
-    "python.defaultInterpreterPath": ".\\venv\\Scripts\\python.exe",
+    "python.defaultInterpreterPath": "c:\\Rockfall_AI_Project\\venv\\Scripts\\python.exe",
     "python.analysis.extraPaths": [
         "c:\\Rockfall_AI_Project",
         "c:\\Rockfall_AI_Project\\src\\data"
