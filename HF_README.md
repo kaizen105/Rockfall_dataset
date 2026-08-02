@@ -46,88 +46,107 @@ configs:
 
 # Noamundi Rockfall Simulation Dataset
 
-## Overview
-This dataset is a physics-informed simulation of rockfall precursor conditions, built by combining real-world terrain and weather data from the Noamundi mining region with synthetic IoT sensor readings and rockfall event labels.
+## 1. Overview
+This dataset is a physics-informed simulation of rockfall precursor conditions for the Noamundi mining region in Jharkhand, India. It combines real-world terrain (DEM) and weather data with geotechnical stability modeling to synthesize IoT sensor readings and rockfall event labels.
 
-It is designed for research into rockfall early-warning systems, precursor detection, anomaly detection, and hazard classification. **It is not a record of real rockfall incidents.** No real rockfall event ever recorded at Noamundi is represented here. The terrain and weather layers are real; the sensor readings and event occurrences are simulated, now driven in part by a geotechnical stability model rather than arbitrary noise.
+It is designed for research into rockfall early-warning systems, anomaly detection, and hazard classification. **It is not a record of real rockfall incidents.** No real rockfall event ever recorded at Noamundi is represented here.
 
-## What Is Real vs. Simulated
-| Component | Status | Source |
+## 2. What Is Real vs Simulated
+| Column | Status | Source |
 | :--- | :--- | :--- |
-| **Terrain features** (Slope, Aspect, Ruggedness, Roughness, Elevation) | **Real** | Digital Elevation Model (DEM) via OpenTopography, processed in QGIS for the Noamundi region. |
-| **Weather features** (temperature, precipitation, wind, radiation) | **Real** | Historical HOURLY weather via the Open-Meteo API for 25 macro-regions. |
-| **Microclimate Downscaling** | **Physics-derived** | Weather is downscaled per location using lapse rates and orographic/solar logic, *not* Gaussian noise. |
-| **Factor of Safety (FS)** | **Physics-derived** | Computed hourly per location using the Infinite Slope Stability model, driven by real slope angles and rainfall pore pressure. |
-| **Sensor readings** (Displacement_Rate_mm_h, Vibration_mm_s) | **Simulated** | Displacement is driven by FS. Vibration includes physics-scaled event spikes plus background sensor noise. |
-| **Rockfall events** | **Simulated** | 80% of events are driven by critical FS thresholds; 20% are random (non-rainfall). |
+| `elev_1`, `slope_1`, `aspect_1`, `rough_1`, `tri_1` | **Real** | DEM via OpenTopography, processed in QGIS |
+| `temperature_2m`, `precipitation`, `windspeed_10m`, `shortwave_radiation` | **Real** | Historical HOURLY weather via Open-Meteo API |
+| Weather Downscaling | **Physics-derived** | Math-based adjustments (lapse rates, orographic formulas) |
+| `FS` (Factor of Safety) | **Physics-derived** | Computed hourly via Infinite Slope Stability model |
+| `Displacement_Rate_mm_h`, `Vibration_mm_s` | **Simulated** | Displacement driven by FS; Vibration from event spikes |
+| `Rockfall_Event` | **Simulated** | 80% rainfall-driven (FS threshold), 20% random |
 
-The full generation pipeline, including the QGIS terrain extraction steps, the weather fetch script, the FS-based sensor simulation script, and the merge/validation scripts, is open sourced here: https://github.com/kaizen105/Rockfall_dataset
+*(Note: Geographic artifacts `X`, `Y`, `rand_point`, `fid`, `DN` were dropped from the training set to prevent geographic memorization, but are retained in `spatial_metadata.csv` for GNN edge construction).*
 
-## Dataset Structure
-- **13,140,000 rows**, true hourly readings across **500 simulated monitoring locations**, spanning January 2021 to December 2023.
-- **2,436 labeled rockfall events**, reflecting the extreme rarity of real rockfall occurrence.
+## 3. Full Methodology
 
-### Columns
-| Column | Description |
-| :--- | :--- |
-| `Timestamp` | Hourly timestamp |
-| `Location_ID` | Simulated monitoring station identifier (LOC_1 to LOC_500) |
-| `Displacement_Rate_mm_h` | Simulated ground displacement rate, driven by FS-based creep |
-| `Vibration_mm_s` | Simulated ground vibration reading |
-| `Rockfall_Event` | Binary label, 1 if a rockfall event occurs |
-| `FS` | Factor of Safety, computed hourly per location from the Infinite Slope Stability model |
-| `elev_1`, `slope_1`, `aspect_1`, `rough_1`, `tri_1` | Static, **real** terrain features per location derived from DEM |
-| `temperature_2m`, `precipitation`, `windspeed_10m`, `shortwave_radiation` | **Real** hourly weather features, downscaled to the specific location |
+### Terrain Extraction
+DEM data for the Noamundi region was obtained via OpenTopography and processed in QGIS to extract Elevation, Slope, Aspect, Roughness, and Ruggedness (TRI). 500 monitoring locations were selected by generating random points constrained within a steep-zone polygon mask (slope ≥ 15°). 
+*(Note: Unconstrained random sampling was originally attempted but failed, yielding a mean slope of ~5.85°, which made the physics engine inert. Masking forced the mean slope up to 16.15°, enabling realistic failure dynamics).*
 
-*(Note: Geographic artifacts `X`, `Y`, `rand_point`, `fid`, `DN` have been dropped from the training set to prevent geographic memorization, but are retained in `spatial_metadata.csv` for GNN edge construction).*
+### Weather & Microclimate Downscaling
+Historical hourly weather was pulled from the Open-Meteo API. Due to API rate limits across 500 locations—and because Open-Meteo's native grid resolution (~9-11km) makes per-point fetches largely redundant—the 500 locations were clustered into 25 KMeans macro-regions. The API fetched true hourly data for the 25 centroids, which was then mathematically downscaled to the 500 individual locations:
+- **Temperature Lapse Rate:** `-0.0065 * elev_diff` (-6.5°C per 1000m elevation difference).
+- **Orographic Rain:** `precipitation * (1.0 + 0.05 * cos(aspect - 270°) * sin(slope))`. *(Note: 270° assumes a static Westerly prevailing wind, which is a simplification that does not reflect actual seasonal monsoon shifts in this region).*
+- **Solar Radiation:** `shortwave_radiation * (1.0 + 0.10 * cos(aspect - 180°) * sin(slope))`.
 
-## How the Simulation Was Built
+### Physics (Factor of Safety)
+The Factor of Safety (FS) is computed hourly using the Infinite Slope Stability model (Skempton and DeLory), the identical single-point foundation used in tools like SHALSTAB and TRIGRS:
+`FS = [ c + (γ · z · cos²β - u) · tanφ ] / [ γ · z · sinβ · cosβ ]`
+- `β` (slope angle): 15° to 34° (real DEM)
+- `γ` (unit weight): 20 to 25 kN/m³ (literature)
+- `z` (depth): 1.0 to 2.0 m (literature)
+- `φ` (friction angle): 30° to 40° (literature)
+- `c` (cohesion): 4 to 10 kPa (literature)
+- `u` (pore pressure): `9.81 * min(1.0, rain_72h / 100) * z`
+*(This 1D model does NOT account for 3D stress, groundwater routing, or joint/fracture mechanics).*
 
-- **Terrain layer:** DEM data for the Noamundi region was obtained via OpenTopography and processed in QGIS to extract Elevation, Slope, Aspect, Ruggedness, and Roughness at each simulated monitoring location. These values are static per location.
-- **Weather layer & Microclimate:** Historical weather data for the same region was pulled from the Open-Meteo API. To avoid API rate limits across 500 locations, locations were clustered into 25 macro-regions (KMeans). The 25 centroid fetches were then mathematically downscaled to the 500 locations using true lapse rates (~6.5°C per 1km elevation), orographic rain (factoring slope and aspect against a 270° Westerly prevailing wind), and solar radiation aspect adjustments.
-- **Physics layer (FS):** A Factor of Safety is computed for every location at every hour using the Infinite Slope Stability model (Skempton and DeLory), the same core equation used as a simplified single-point foundation in regional tools such as SHALSTAB and TRIGRS:
+### Sensor & Event Simulation
+- **Events:** Event count follows a Poisson process (λ = 5). 80% of events are weighted toward hours of critical instability (FS ≤ 1.3). 20% are placed at completely random hours (representing non-rainfall triggers).
+- **Displacement Creep:** `0.15 / (max(FS, 1.01) - 1.0)` gated strictly on hours where `FS ≤ 1.3`. 
+- **Vibration:** Event spikes are modeled as `γ * z * sin(β) * U(0.4, 0.6) * exp(-0.05*t)`.
 
-  `FS = [ c + (γ · z · cos²β - u) · tanφ ] / [ γ · z · sinβ · cosβ ]`
+## 4. Development History / Changelog
+1. **90° QGIS Slope Bug:** QGIS raster processing initially produced 90° slope artifacts at boundaries; fixed by clipping the raster.
+2. **Flat-Terrain Bug:** Unconstrained sampling yielded flat terrain (5.85° mean slope). Fixed by applying a steep-polygon mask (16.15° mean slope).
+3. **Weather API Limits:** Fixed via 25-cluster KMeans and physics-based downscaling.
+4. **Fabricated Elevation Bug:** An early script injected `elev_1 = 500.0` constant due to a missing DEM band; fixed by extracting real DEM elevations.
+5. **Hourly Upgrade:** Upgraded from daily to hourly weather, requiring a rescale of the rolling-window logic (3/7-day to 72/168-hour).
+6. **Junk Columns:** Discovered QGIS artifacts (`rand_point`, `fid`, `X`, `Y`) were contaminating the dataset as proxies for latitude. Dropped from the training set, retained only in `spatial_metadata.csv`.
 
-  Variable ranges used, drawn from literature values for weathered rock and soil:
-  - **β (slope angle):** 15° to 34°, explicitly sampled from the real DEM to ensure steep terrain dynamics.
-  - **γ (unit weight):** 20 to 25 kN/m³
-  - **z (depth to failure plane):** 1.0 to 2.0 m
-  - **φ (friction angle):** 30° to 40°
-  - **c (cohesion):** 4 to 10 kPa
-  - **u (pore water pressure):** dynamically derived each hour from a 72-hour rolling rainfall proxy (h_w), 0 when dry and rising toward saturation during heavy rain.
+## 5. Event-Window Validation Analysis
+The direct whole-dataset correlation between Displacement and FS is **-0.017**, and the 72h pre-event windowed correlation is **-0.028**. 
+Both are near-zero despite a real physical signal existing because the hard `FS ≤ 1.3` gate creates a step-function rather than a gradual ramp, averaging out to zero across the millions of dry hours. 
 
-  Under dry conditions (u = 0), the constants keep baseline FS in a stable range of roughly 1.5 to 2.5. During sustained rainfall, u rises, frictional resistance is stripped away, and FS is driven down toward and below the 1.0 failure threshold.
+However, the **population-level learnable signal** is real: average pre-event windows show a genuine sustained climb in displacement (~0.025 to ~0.13 mm/h over 72 hours), compared to a flat ~0.015 mm/h for random non-event windows. 
 
-- **Sensor layer:** Displacement is generated as background noise plus an FS-driven creep term that accelerates as FS drops toward 1.0. Vibration includes background sensor noise plus event-triggered spikes scaled by slope angle and assumed failure mass.
-- **Event layer:** The number of events per location follows a Poisson process (λ = 5). Within that budget, 80% of events are placed at hours weighted exponentially toward low FS (favoring FS ≤ 1.3, exhibiting clear displacement precursors), and 20% are placed at fully random hours to represent non-rainfall-triggered failure modes such as thermal cycling or blasting (exhibiting zero precursor signal).
+The strongest single predictive correlation in the dataset is `Displacement_Rate_mm_h` vs `Rockfall_Event` (**0.317**). 
+*(Note: Individual events vary by design. 80% show clean FS-driven displacement ramps, while 20% show flat FS with no precursors, intentionally simulating unpredictable failure modes).*
 
-## Known Issues & Fixes (Changelog)
-1. **The 90° QGIS Slope Bug (Fixed):** Earlier QGIS raster processing produced 90-degree slope artifacts at DEM boundaries. This was fixed by correctly clipping the raster before slope generation.
-2. **The Flat-Terrain Bug (Fixed):** The original random point sampling favored flat terrain (avg 6° slope), causing the physics engine to fail. The sampling was rewritten to strictly target steep geographic slopes (15°–34°).
-3. **The Fake Elevation Bug (Fixed):** A previous generation script accidentally fabricated elevations (`elev_1 = 500 + noise`) due to a missing DEM band. This was corrected, and the dataset now uses actual DEM elevations.
+## 6. Full Correlation Matrix
+```json
+{
+    "temperature_2m": {"temperature_2m": 1.0, "precipitation": 0.0221, "windspeed_10m": 0.3293, "shortwave_radiation": 0.6096, "elev_1": -0.1126, "slope_1": 0.0082, "FS": -0.0196, "Displacement_Rate_mm_h": 0.0114, "Rockfall_Event": 0.0003},
+    "precipitation": {"precipitation": 1.0, "FS": -0.0369, "Displacement_Rate_mm_h": 0.0053, "Rockfall_Event": -0.0005},
+    "slope_1": {"slope_1": 1.0, "tri_1": 0.8636, "FS": -0.782, "Displacement_Rate_mm_h": 0.025, "Rockfall_Event": -0.0025},
+    "tri_1": {"tri_1": 1.0, "slope_1": 0.8636, "FS": -0.5877, "Displacement_Rate_mm_h": 0.0316, "Rockfall_Event": -0.0034},
+    "FS": {"FS": 1.0, "slope_1": -0.782, "Displacement_Rate_mm_h": -0.0168, "Rockfall_Event": 0.0018},
+    "Displacement_Rate_mm_h": {"Displacement_Rate_mm_h": 1.0, "FS": -0.0168, "Rockfall_Event": 0.3166},
+    "Rockfall_Event": {"Rockfall_Event": 1.0, "Displacement_Rate_mm_h": 0.3166, "FS": 0.0018}
+}
+```
+*(Note the high collinearity between `slope_1` and ruggedness `tri_1` (0.864) for feature importance interpretation).*
 
-## Known Limitations
-- **Simulated ground truth:** Event labels and sensor readings do not correspond to any real, observed rockfall. Models trained on this dataset should not be assumed to transfer directly to real-world deployment without validation against real sensor and incident data.
-- **Simplified physics:** The FS calculation uses a single-point Infinite Slope model with literature-range constants rather than site-measured geotechnical properties. It ignores 3D stress effects, spatial groundwater flow, and joint/fracture mechanics.
-- **Event count remains partially arbitrary:** Total event count per location is still governed by a Poisson process rather than emerging entirely from FS crossing a failure threshold. 
-- **Weak direct FS-to-event correlation:** Because event count is Poisson-controlled and 20% of events are randomly placed, the direct correlation between FS and the `Rockfall_Event` label across all 13M rows is weak, even though FS perfectly drives displacement (correlation around -0.78) during critical windows.
-- **Class imbalance:** With 2,436 positive events across 13.1 million rows, statistics computed per-location or per-season carry wide uncertainty and should be interpreted cautiously.
-- **Sensor dropout:** A small fraction of sensor readings (~1.0%) are missing, simulating realistic hardware downtime.
+## 7. Known Limitations
+- Simulated ground truth, not field-validated.
+- Simplified 1D physics (Infinite Slope only, no 3D/groundwater/fracture modeling).
+- No geomechanical data (UCS, cohesion, friction angle from real site testing) because open geotechnical data is lacking for Indian mining regions.
+- Static 270° wind direction assumption in the rainfall downscaling model (does not reflect actual seasonal monsoon direction shifts).
+- Event count governed by Poisson process rather than purely FS-emergent.
+- Weak whole-dataset correlation numbers requiring event-windowed temporal analysis to see the real signal.
+- Class imbalance (2,436 positive events across 13.14M rows).
+- Weather is downscaled from 25 real fetches, not independently measured at all 500 locations.
 
-## Suggested Uses
-- Binary classification of rockfall risk from combined terrain, weather, sensor, and FS features.
-- Anomaly detection given the strong class imbalance, which better reflects real-world deployment conditions than balanced classification.
-- Precursor / early-warning research, using the FS-driven displacement creep to study lead-time detection ahead of events.
-- Cross-location generalization testing, since terrain and FS baselines vary meaningfully across the 500 simulated locations.
-- Feature ablation studies comparing the relative value of terrain-only, weather-only, sensor-only, and FS-only inputs.
-- Methodology benchmarking for imbalanced, rare-event classification under semi-synthetic but physically grounded conditions.
+## 8. Suggested Uses
+- **Classification & Anomaly Detection:** Benchmarking rare-event logic under physically grounded class imbalance.
+- **Precursor / Early-Warning Research:** Studying lead-time detection (mind the 80/20 rainfall vs random trigger split).
+- **Cross-Location Generalization:** Testing models across different geographic baselines.
+- **Feature Ablation Studies:** Comparing relative value of terrain-only vs weather-only vs sensor-only inputs.
 
-## Code and Reproducibility
-The full streaming architecture is open-sourced in this repository. It natively handles the 13.1 million rows with a minimal memory footprint. Anyone wanting to inspect the exact constants used, regenerate the dataset with different assumptions, or extend the physics model can start from that repository.
+## 9. Dataset Structure Stats
+- **Total Rows:** 13,140,000
+- **Total Locations:** 500
+- **Rockfall Events:** 2,436
+- **Missing Data (Dropout):** 1.0% (~131,000 rows on sensor columns)
 
-## Citation
-If you use this dataset, please credit the author and note its synthetic nature in any derived work or publication.
-
-## License
-Released under CC-BY-4.0. You are free to share and adapt this dataset with attribution.
+## 10. Code and Reproducibility
+The full streaming pipeline is hosted at [https://github.com/kaizen105/Rockfall_dataset](https://github.com/kaizen105/Rockfall_dataset). 
+To regenerate the data from scratch, run the scripts in this exact order:
+1. `src/data/prepare_geometry_500.py`
+2. `src/data/get_weather_data.py`
+3. `src/data/create_sensor_data.py`
