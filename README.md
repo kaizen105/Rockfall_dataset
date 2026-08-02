@@ -19,7 +19,12 @@ This dataset provides a physics-informed simulation of rockfall precursor condit
 - **Sensor Dropout Rate:** 1.0% (~130,000 rows randomly set to NaN for realism)
 - **Trajectory Steps:** Dense spatio-temporal step sequences available in `rockfall_trajectories.csv`
 
-### 2.1 Feature Provenance (Real vs Simulated)
+### 2.1 Dataset Files
+- **`training_dataset.csv`**: The hourly predictive timeseries containing weather, terrain metadata, and simulated IoT sensor readings. Target leakage windows (72h post-event) have been explicitly removed to make it ML-ready.
+- **`spatial_metadata.csv`**: Static geographical, geomorphological, and geomechanical metadata for all 500 locations, including the final trajectory maximums (runout, bounce height, energy).
+- **`data_v2/trajectories/rockfall_trajectories.csv`**: Full spatio-temporal pathing ($dt=0.05s$) for simulated rockfall drops across three hazard mass classes (500kg, 2000kg, 10000kg).
+
+### 2.2 Feature Provenance (Real vs Simulated)
 | Column | Status | Source |
 | :--- | :--- | :--- |
 | `elev_1`, `slope_1`, `aspect_1`, `rough_1`, `tri_1`, `profile_curvature`, `planform_curvature` | **Real** | DEM via OpenTopography (30m SRTM) |
@@ -30,6 +35,25 @@ This dataset provides a physics-informed simulation of rockfall precursor condit
 | `Max_Runout_m`, `Max_Bounce_Height_m`, `Max_Kinetic_Energy_*` | **Physics** | 2D rigid-body kinematics (CRSP parameters) |
 
 *(Note: Geographic artifacts `X`, `Y`, `rand_point`, `fid` were intentionally dropped from the hourly training set to prevent neural networks from geographically memorizing locations. They remain available in the spatial metadata).*
+
+### 2.3 Data Dictionaries
+
+#### `spatial_metadata.csv` (Key Columns)
+- **`Location_ID`**: Unique identifier for the monitoring point.
+- **`Profile_Valid`** *(Boolean)*: Flag indicating if the DEM raycast successfully generated a valid slope profile. Exists to handle edge-case DEM nodata boundaries (flagged 1/500 locations as invalid).
+- **`Max_Runout_m`** *(Float)*: The absolute maximum horizontal distance a boulder traveled from the source.
+- **`Max_Bounce_Height_m`** *(Float)*: The maximum vertical height achieved above the terrain during a bounce.
+- **`Max_Kinetic_Energy_500kg_J` / `2000kg` / `10000kg`** *(Float)*: The peak kinetic energy achieved during the runout for the respective boulder mass.
+
+#### `rockfall_trajectories.csv`
+- **`Location_ID`**: Identifier linking back to the source location.
+- **`Mass_kg`**: The mass of the simulated boulder (500.0, 2000.0, or 10000.0).
+- **`Step_Index`**: Sequential integer index of the simulation step.
+- **`Time_s`**: Elapsed time in seconds ($dt=0.05s$).
+- **`Distance_s_m`**: Cumulative distance along the 2D topographic profile.
+- **`Elevation_z_m`**: Absolute elevation of the boulder at the current timestep.
+- **`Velocity_x_mps` / `Velocity_z_mps`**: Horizontal and vertical velocity components.
+- **`Kinetic_Energy_J`**: Instantaneous kinetic energy.
 
 ---
 
@@ -47,38 +71,58 @@ The 1D slope stability model computes Factor of Safety (FS):
 - **Stochastic Generation:** The final precursor simulation runs unseeded by design, encouraging variations across regenerations.
 
 ### 3.2 Trajectory Engine (2D Kinematics)
-To simulate downstream hazard, a custom 2D kinematics engine drops boulder masses (500kg, 2,000kg, 10,000kg) from each location and traces their downhill paths.
-- **Physics Math:** Uses discrete Euler integration with rigid-body impact restitution and rolling friction.
-- **CRSP Sourced Parameters:** Employs the Colorado Rockfall Simulation Program (CRSP) industry-standard parameters for vegetated talus slopes (Normal Restitution `Rn = 0.35`, Tangential Restitution `Rt = 0.85`, Rolling Friction `μ = 0.15`).
-- **Data Target Isolation:** Runout distances and kinetic energies are appended as *static topological metadata* to `spatial_metadata.csv` (and full paths in `rockfall_trajectories.csv`) to strictly prevent target leakage into the hourly predictive timeseries.
+To simulate downstream hazard, a custom 2D kinematics engine drops boulder masses from each location and traces their downhill paths. 
+
+**Initial Conditions:** Boulders are released with a 1.0m initial vertical drop and a 0.5 m/s horizontal velocity. This mimics standard RocFall software initialization to simulate realistic dislodgement and prevent instant friction-locking on shallow start points.
+
+**Physics Methodology & Equations:**
+The model uses discrete Euler integration ($dt=0.05s$) mapping rigid-body impact restitution and rolling friction.
+- **Projectile / Freefall Motion:**
+  - $v_{z,t} = v_{z,t-1} - g \Delta t$
+  - $x_t = x_{t-1} + v_x \Delta t$
+  - $z_t = z_{t-1} + v_{z,t} \Delta t$
+- **Impact Velocity Decomposition:**
+  Velocity vectors are decomposed against the local ground slope tangent ($ec{t}$) and normal ($ec{n}$):
+  - $v_{in,n} = ec{v}_{in} \cdot ec{n}$
+  - $v_{in,t} = ec{v}_{in} \cdot ec{t}$
+- **Restitution (CRSP Model):**
+  Uses Colorado Rockfall Simulation Program (CRSP) industry-standard parameters for vegetated talus slopes ($R_n = 0.35$, $R_t = 0.85$, $\mu = 0.15$).
+  - $v_{out,n} = -R_n \cdot v_{in,n}$
+  - $v_{out,t} = R_t \cdot v_{in,t}$
+- **Sliding / Rolling Friction:**
+  Triggered when normal velocity drops below a bounce threshold ($v_{out,n} < 0.5$ m/s).
+  - $a_{parallel} = -g \sin(	heta) - 	ext{sign}(v_x) \cdot \mu \cdot g \cos(	heta)$
+- **Kinetic Energy:**
+  - $E_k = \frac{1}{2} m (v_x^2 + v_z^2)$
+
+**Data Target Isolation:** Runout distances and kinetic energies are appended as *static topological metadata* to `spatial_metadata.csv` (and full paths in `rockfall_trajectories.csv`) to strictly prevent target leakage into the hourly predictive timeseries.
 
 ---
 
-## 📈 4. Event-Window Validation Analysis
-The dataset is engineered to contain a genuine predictive precursor signal, though it is obfuscated by extreme class imbalance. The direct whole-dataset correlation between Displacement and FS is **-0.017**, which is near-zero because the hard `FS ≤ 1.3` trigger acts as a step-function across millions of dry hours.
+## 📈 4. Validation Analysis
+
+### 4.1 Event-Window Validation (Hourly Timeseries)
+The direct whole-dataset correlation between Displacement and FS is **-0.017**, which is near-zero because the hard `FS ≤ 1.3` trigger acts as a step-function across millions of dry hours.
 
 However, the **population-level learnable signal** is real: average pre-event windows show a genuine sustained climb in displacement (~0.025 to ~0.13 mm/h over 72 hours), compared to a flat ~0.015 mm/h for random non-event windows. 
 
-### Key Feature Correlations
 | Feature | FS | Displacement (mm/h) | Vibration (mm/s) | Rockfall_Event |
 | :--- | :--- | :--- | :--- | :--- |
 | `temperature_2m` | -0.020 | 0.011 | 0.054 | 0.000 |
 | `precipitation` | -0.037 | 0.005 | 0.011 | -0.001 |
-| `windspeed_10m` | -0.042 | 0.014 | 0.026 | 0.001 |
-| `shortwave_radiation` | 0.011 | 0.006 | 0.049 | -0.000 |
-| `elev_1` | 0.008 | -0.006 | -0.003 | -0.000 |
 | `slope_1` | -0.782 | 0.025 | 0.004 | -0.003 |
-| `aspect_1` | -0.001 | -0.003 | 0.003 | -0.003 |
-| `rough_1` | 0.094 | 0.019 | 0.000 | 0.000 |
-| `tri_1` | -0.588 | 0.032 | 0.004 | -0.003 |
-| `profile_curvature` | -0.019 | -0.002 | 0.000 | 0.000 |
-| `planform_curvature` | -0.001 | 0.001 | -0.001 | -0.000 |
-| **Target Variables** | | | | |
 | `FS` | 1.000 | -0.017 | -0.004 | 0.002 |
 | `Displacement_Rate_mm_h` | -0.017 | 1.000 | 0.199 | **0.317** |
 | `Vibration_mm_s` | -0.004 | 0.199 | 1.000 | 0.085 |
 
 *(Note the high collinearity between `slope_1` and ruggedness `tri_1` (0.864) for feature importance interpretation).*
+
+### 4.2 Trajectory Runout Validation
+The kinematic engine was validated against the 500 sampled locations to ensure physics stability:
+- **Runout Distribution:** Mean = 153.6m, Median = 113.3m, Max = 1,998.3m.
+- **Truncation Check:** Only 1 out of 499 valid locations (0.2%) reached the 2000m artificial simulation cap, confirming that the vast majority of boulders naturally halted due to simulated physical friction rather than array boundaries.
+- **Energy Mass Scaling:** Verified perfectly linear scaling across masses. At identical locations, the 2000kg boulder yields exactly 4.00x the kinetic energy of the 500kg boulder, and the 10000kg boulder yields exactly 20.00x, mathematically confirming runout distance is correctly mass-independent in the kinematics loop.
+- **Invalid Profile Flagging:** The `Profile_Valid` flag successfully caught 1/500 locations (`LOC_65`) that touched a DEM NoData boundary, zeroing out its resulting metrics to prevent silent dataset contamination.
 
 ---
 
