@@ -86,8 +86,8 @@
             "Displacement_Rate_mm_h": 0.0114,
             "Vibration_mm_s": 0.0536,
             "Rockfall_Event": 0.0003,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "precipitation": {
             "temperature_2m": 0.0221,
@@ -108,8 +108,8 @@
             "Displacement_Rate_mm_h": 0.0053,
             "Vibration_mm_s": 0.0109,
             "Rockfall_Event": -0.0005,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "windspeed_10m": {
             "temperature_2m": 0.3293,
@@ -130,8 +130,8 @@
             "Displacement_Rate_mm_h": 0.0136,
             "Vibration_mm_s": 0.0263,
             "Rockfall_Event": 0.0007,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "shortwave_radiation": {
             "temperature_2m": 0.6096,
@@ -152,8 +152,8 @@
             "Displacement_Rate_mm_h": 0.0056,
             "Vibration_mm_s": 0.0485,
             "Rockfall_Event": -0.0001,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "X": {
             "temperature_2m": 0.0061,
@@ -174,8 +174,8 @@
             "Displacement_Rate_mm_h": -0.0003,
             "Vibration_mm_s": 0.0008,
             "Rockfall_Event": -0.0022,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "Y": {
             "temperature_2m": 0.0322,
@@ -196,8 +196,8 @@
             "Displacement_Rate_mm_h": 0.0068,
             "Vibration_mm_s": 0.0003,
             "Rockfall_Event": -0.0009,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "rand_point": {
             "temperature_2m": -0.0284,
@@ -218,8 +218,8 @@
             "Displacement_Rate_mm_h": -0.0057,
             "Vibration_mm_s": -0.0005,
             "Rockfall_Event": 0.0007,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "fid": {
             "temperature_2m": -0.0286,
@@ -240,8 +240,8 @@
             "Displacement_Rate_mm_h": -0.0057,
             "Vibration_mm_s": -0.0005,
             "Rockfall_Event": 0.0007,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "DN": {
             "temperature_2m": 0.0465,
@@ -262,8 +262,8 @@
             "Displacement_Rate_mm_h": -0.0027,
             "Vibration_mm_s": 0.0016,
             "Rockfall_Event": -0.0018,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "elev_1": {
             "temperature_2m": -0.1126,
@@ -284,8 +284,8 @@
             "Displacement_Rate_mm_h": -0.0061,
             "Vibration_mm_s": -0.0032,
             "Rockfall_Event": -0.0001,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "slope_1": {
             "temperature_2m": 0.0082,
@@ -306,8 +306,8 @@
             "Displacement_Rate_mm_h": 0.025,
             "Vibration_mm_s": 0.0042,
             "Rockfall_Event": -0.0025,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "aspect_1": {
             "temperature_2m": -0.0015,
@@ -328,8 +328,8 @@
             "Displacement_Rate_mm_h": -0.0025,
             "Vibration_mm_s": 0.0032,
             "Rockfall_Event": -0.0026,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "rough_1": {
             "temperature_2m": 0.0054,
@@ -350,8 +350,8 @@
             "Displacement_Rate_mm_h": 0.0195,
             "Vibration_mm_s": 0.0001,
             "Rockfall_Event": 0.0001,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "tri_1": {
             "temperature_2m": 0.0031,
@@ -372,8 +372,8 @@
             "Displacement_Rate_mm_h": 0.0316,
             "Vibration_mm_s": 0.0035,
             "Rockfall_Event": -0.0034,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "FS": {
             "temperature_2m": -0.0196,
@@ -394,8 +394,8 @@
             "Displacement_Rate_mm_h": -0.0168,
             "Vibration_mm_s": -0.0044,
             "Rockfall_Event": 0.0018,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "Displacement_Rate_mm_h": {
             "temperature_2m": 0.0114,
@@ -416,8 +416,8 @@
             "Displacement_Rate_mm_h": 1.0,
             "Vibration_mm_s": 0.1987,
             "Rockfall_Event": 0.3166,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "Vibration_mm_s": {
             "temperature_2m": 0.0536,
@@ -438,8 +438,8 @@
             "Displacement_Rate_mm_h": 0.1987,
             "Vibration_mm_s": 1.0,
             "Rockfall_Event": 0.0846,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "Rockfall_Event": {
             "temperature_2m": 0.0003,
@@ -460,52 +460,52 @@
             "Displacement_Rate_mm_h": 0.3166,
             "Vibration_mm_s": 0.0846,
             "Rockfall_Event": 1.0,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "profile_curvature": {
-            "temperature_2m": NaN,
-            "precipitation": NaN,
-            "windspeed_10m": NaN,
-            "shortwave_radiation": NaN,
-            "X": NaN,
-            "Y": NaN,
-            "rand_point": NaN,
-            "fid": NaN,
-            "DN": NaN,
-            "elev_1": NaN,
-            "slope_1": NaN,
-            "aspect_1": NaN,
-            "rough_1": NaN,
-            "tri_1": NaN,
-            "FS": NaN,
-            "Displacement_Rate_mm_h": NaN,
-            "Vibration_mm_s": NaN,
-            "Rockfall_Event": NaN,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "temperature_2m": null,
+            "precipitation": null,
+            "windspeed_10m": null,
+            "shortwave_radiation": null,
+            "X": null,
+            "Y": null,
+            "rand_point": null,
+            "fid": null,
+            "DN": null,
+            "elev_1": null,
+            "slope_1": null,
+            "aspect_1": null,
+            "rough_1": null,
+            "tri_1": null,
+            "FS": null,
+            "Displacement_Rate_mm_h": null,
+            "Vibration_mm_s": null,
+            "Rockfall_Event": null,
+            "profile_curvature": null,
+            "planform_curvature": null
         },
         "planform_curvature": {
-            "temperature_2m": NaN,
-            "precipitation": NaN,
-            "windspeed_10m": NaN,
-            "shortwave_radiation": NaN,
-            "X": NaN,
-            "Y": NaN,
-            "rand_point": NaN,
-            "fid": NaN,
-            "DN": NaN,
-            "elev_1": NaN,
-            "slope_1": NaN,
-            "aspect_1": NaN,
-            "rough_1": NaN,
-            "tri_1": NaN,
-            "FS": NaN,
-            "Displacement_Rate_mm_h": NaN,
-            "Vibration_mm_s": NaN,
-            "Rockfall_Event": NaN,
-            "profile_curvature": NaN,
-            "planform_curvature": NaN
+            "temperature_2m": null,
+            "precipitation": null,
+            "windspeed_10m": null,
+            "shortwave_radiation": null,
+            "X": null,
+            "Y": null,
+            "rand_point": null,
+            "fid": null,
+            "DN": null,
+            "elev_1": null,
+            "slope_1": null,
+            "aspect_1": null,
+            "rough_1": null,
+            "tri_1": null,
+            "FS": null,
+            "Displacement_Rate_mm_h": null,
+            "Vibration_mm_s": null,
+            "Rockfall_Event": null,
+            "profile_curvature": null,
+            "planform_curvature": null
         }
     }
 }
