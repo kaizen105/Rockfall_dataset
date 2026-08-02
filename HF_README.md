@@ -37,15 +37,15 @@ dataset_info:
     dtype: float64
   splits:
   - name: train
-    num_bytes: 1534000000
-    num_examples: 13140000
-  download_size: 1534000000
-  dataset_size: 1534000000
+    num_bytes: 2646045818
+    num_examples: 12966776
+  download_size: 2646045818
+  dataset_size: 2646045818
 configs:
 - config_name: default
   data_files:
   - split: train
-    path: data/train-*
+    path: training_dataset.csv
 ---
 
 # 🪨 Noamundi Rockfall Simulation Dataset
