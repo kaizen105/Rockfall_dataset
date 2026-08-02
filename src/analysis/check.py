@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 # --- Configuration ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DATA_DIR = os.path.join(BASE_DIR, "data")
+DATA_DIR = os.path.join(BASE_DIR, "data_v2")
 RESULTS_DIR = os.path.join(BASE_DIR, "results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 FILE_PATH = os.path.join(DATA_DIR, "final_master_dataset.csv")

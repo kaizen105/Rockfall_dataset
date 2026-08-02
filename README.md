@@ -1,111 +1,60 @@
-# Rockfall Dataset Generation and Analysis
+# Noamundi Rockfall Simulation Dataset
 
-[![Hugging Face Dataset](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Dataset-blue)](https://huggingface.co/datasets/Kaizen696/noamundi-rockfall-simulation-dataset)
+## Overview
+This dataset is a physics-informed simulation of rockfall precursor conditions, built by combining real-world terrain and weather data from the Noamundi mining region with synthetic IoT sensor readings and rockfall event labels.
 
-This repository contains a complete, physics-informed pipeline for creating, merging, and analyzing realistic synthetic rockfall event data. The core of this dataset is anchored in **real-world geospatial data**, which is then combined with historical weather conditions and simulated sensor readings. You can access the final generated dataset directly on Hugging Face using the link above.
+It is designed for research into rockfall early-warning systems, precursor detection, anomaly detection, and hazard classification. **It is not a record of real rockfall incidents.** No real rockfall event ever recorded at Noamundi is represented here. 
 
-## 🌍 The Workflow: How the Data Was Created
+## What Is Real vs. Simulated
+| Component | Status | Source |
+| :--- | :--- | :--- |
+| **Terrain features** (Slope, Aspect, Ruggedness, Roughness, Elevation) | **Real** | Digital Elevation Model (DEM) via OpenTopography, processed in QGIS for the Noamundi region. |
+| **Weather features** (temperature, precipitation, wind, radiation) | **Real** | Historical HOURLY weather via the Open-Meteo API for 25 macro-regions. |
+| **Microclimate Downscaling** | **Physics-derived** | Weather is downscaled per location using lapse rates and orographic/solar logic, *not* Gaussian noise. |
+| **Factor of Safety (FS)** | **Physics-derived** | Computed hourly per location using the Infinite Slope Stability model, driven by real slope angles and rainfall pore pressure. |
+| **Sensor readings** (Displacement_Rate_mm_h, Vibration_mm_s) | **Simulated** | Displacement is driven by FS. Vibration includes physics-scaled event spikes plus background sensor noise. |
+| **Rockfall events** | **Simulated** | 80% of events are driven by critical FS thresholds; 20% are random (non-rainfall). |
 
-### Step 1: Topographical Data (OpenTopography & QGIS)
-The foundational geometry dataset was derived using **OpenTopography** to obtain the initial Digital Elevation Model (DEM). **QGIS** was then used to process this elevation data and extract critical terrain features at various locations, including:
-- **Slope**
-- **Aspect**
-- **Ruggedness**
-- **Roughness**
+## Dataset Structure
+- **13,140,000 rows:** True hourly readings across **500 unique locations**, spanning January 2021 to December 2023.
+- **2,436 labeled rockfall events.**
 
-These features were exported from QGIS into `data/geometry_dataset.csv` and form the physical basis for the simulated rockfall events.
+### Columns
+| Column | Description |
+| :--- | :--- |
+| `Timestamp` | Hourly timestamp |
+| `Location_ID` | Simulated monitoring station identifier (LOC_1 to LOC_500) |
+| `Displacement_Rate_mm_h` | Simulated ground displacement rate, driven by FS-based creep |
+| `Vibration_mm_s` | Simulated ground vibration reading |
+| `Rockfall_Event` | Binary label, 1 if a rockfall event occurs |
+| `FS` | Factor of Safety, computed hourly |
+| `elev_1`, `slope_1`, `aspect_1`, `rough_1`, `tri_1` | Static, **real** terrain features per location derived from DEM |
+| `temperature_2m`, `precipitation`, `windspeed_10m`, `shortwave_radiation` | **Real** hourly weather features, downscaled to the specific location |
 
-### Step 2: Weather Data Integration (Open-Meteo API)
-Using `src/data/get_weather_data.py`, historical weather data for the corresponding location (e.g., Noamundi) was fetched using the Open-Meteo API. This includes temperatures, precipitation sums, and wind speeds, while also engineering features like 3-day and 7-day rolling rainfall sums.
+*(Note: Geographic artifacts `X`, `Y`, `rand_point`, `fid`, `DN` have been dropped from the training set to prevent geographic memorization, but are retained in `spatial_metadata.csv` for GNN edge construction).*
 
-### Step 3: Physics-Informed Sensor Simulation
-Using `src/data/create_sensor_data.py`, synthetic IoT sensor data (vibration and displacement) was generated. The script physically models:
-- Thermal cycles
-- Rain-induced slope creep (using the precipitation data)
-- Blasting machinery noise
-- Pre-failure and post-failure displacement curves for rockfall events.
+## Known Issues & Fixes (Changelog)
+1. **The 90° QGIS Slope Bug:** Earlier QGIS raster processing produced 90-degree slope artifacts at DEM boundaries. This was fixed by correctly clipping the raster before slope generation.
+2. **The Flat-Terrain Bug:** The original random point sampling favored flat terrain (avg 6° slope), causing the physics engine to fail. The sampling was rewritten to strictly target steep geographic slopes (15°–34°).
+3. **The Fake Elevation Bug:** A previous generation script accidentally fabricated elevations (`elev_1 = 500 + noise`) due to a missing DEM band. This was corrected, and the dataset now uses actual DEM elevations.
+4. **Weather Clustering & Downscaling:** Fetching 3 years of hourly data for 500 locations exceeds free Open-Meteo API limits. To solve this, the 500 locations were clustered into 25 KMeans macro-regions. The API fetches true hourly data for those 25 centroids, which is then physically downscaled to the 500 locations.
 
-### ⚠️ Data Reality & Simulation Assumptions
+## Physics-Based Weather Downscaling
+To bridge the 25 centroid fetches to the 500 unique locations, weather is downscaled using strict physical rules (not random Gaussian noise):
+- **Temperature Lapse Rate:** Adjusted by elevation difference from the centroid using a ~6.5°C drop per 1,000m.
+- **Orographic Rain:** Precipitation is scaled based on slope and aspect relative to a simplified hardcoded 270° Westerly prevailing wind direction.
+- **Solar Radiation:** Shortwave radiation is scaled based on deviation from South-facing aspects.
 
-To ensure transparency for machine learning applications, it is critical to distinguish between real-world observations and synthetic engineering in this dataset:
+## The Physics Engine & Event Triggers
+The Factor of Safety (FS) is calculated using the Infinite Slope model. During sustained rainfall, pore pressure rises, dropping the FS. 
+Rockfall events are placed using two distinct triggers:
+1. **Rainfall-Driven (80%):** Placed at hours heavily weighted toward critical instability (`FS ≤ 1.3`). These events display a distinct precursor signal (displacement creep) in the final hours before failure.
+2. **Random/Non-Rainfall (20%):** Placed randomly to simulate thermal cycling, blasting, or wildlife. These exhibit **zero** precursor displacement signals.
 
-**What is REAL:**
-- **Terrain & Geometry:** Slope, aspect, ruggedness, and roughness are derived from real-world OpenTopography DEM data.
-- **Weather:** Historical precipitation, temperature, and wind data are real meteorological records.
+Because 20% of events are random and displacement only accelerates at the very end of the rainfall window, the overall dataset correlation between Displacement and FS is intentionally weak, requiring advanced temporal models (LSTMs, Transformers) to detect the true precursor windows.
 
-**What is SIMULATED (Synthetic):**
-- **Sensor Readings:** Synthetic sensor readings are anchored to the **Infinite Slope Stability Model** (Skempton & DeLory), a classic soil mechanics formula used as the simplified, single-point foundation for regional tools like SHALSTAB and TRIGRS.
+## Code and Reproducibility
+The full streaming architecture is open-sourced in this repository. It natively handles the 13.1 million rows with a minimal memory footprint.
 
-#### The Physics Model (Infinite Slope Stability)
-The simulation computes a time-series **Factor of Safety (FS)** for every location:
-```math
-FS = \frac{c + (\gamma \cdot z \cdot \cos^2\beta - u) \cdot \tan\phi}{\gamma \cdot z \cdot \sin\beta \cdot \cos\beta}
-```
-Where variables are assigned realistic geotechnical bounds for weathered rock/soil:
-* $\beta$ = Slope angle ($26^\circ - 32^\circ$, mapped from DEM to prevent vertical QGIS artifacts)
-* $\gamma$ = Unit weight of soil/rock ($20 - 25 \text{ kN/m}^3$)
-* $z$ = Depth to failure plane ($1.0 - 2.0 \text{ m}$)
-* $\phi$ = Friction angle ($30^\circ - 40^\circ$)
-* $c$ = Cohesion ($4 - 10 \text{ kPa}$)
-* $u$ = Pore water pressure, dynamically derived from a 72-hour rolling rainfall proxy ($h_w$).
-
-When conditions are dry ($u=0$), the constants ensure the baseline FS hovers in a stable range of **1.5 – 2.5**. During severe rainfall, $u$ spikes, stripping away frictional resistance and driving the FS below the **1.0** failure threshold.
-
-- **Event Occurrence & Timing:** Event probabilities dynamically scale using an exponential multiplier based on the calculated Factor of Safety. Rain-induced failures are deterministically biased towards periods where the slope physically yields ($FS \le 1.3$). The probability of a rockfall peaks exponentially as $FS \to 1.0$.
-- **Event Physics:** 
-  - **Pre-failure displacement** (tertiary creep) emerges naturally in the time-series as a physically modeled inverse function of the degrading FS (`creep ∝ 1 / (FS - 1.0)`). 
-  - **Vibration spikes** are dynamically scaled based on a proxy for the failing mass and slope energy (`γ * z * sin(β)`), rather than arbitrary random injection. Steeper, deeper failures produce louder signatures.
-- **Event Distribution:** Overall event counts per location are still probabilistically regulated via a Poisson distribution (mean=5) to maintain dataset usability and variability for classification models.
-
-*Note: While the simulation uses the core Infinite Slope FS equation to model realistic precursor behavior, it is a simplified 1D approximation lacking rigorous 3D hydrological routing or spatial groundwater flow.*
-
-### Step 4: Final Consolidation
-Using `src/data/final_dataset.py`, the geospatial QGIS data, the historical weather data, and the synthetic sensor data are all merged into a single master dataset (`data/final_master_dataset.csv`).
-
-## 📂 Repository Structure
-
-```text
-Rockfall_AI_Project/
-├── src/
-│   ├── data/
-│   │   ├── get_weather_data.py       # Fetches historical weather data
-│   │   ├── create_sensor_data.py     # Generates synthetic sensor data
-│   │   └── final_dataset.py          # Merges all data into a master dataset
-│   └── analysis/
-│       ├── check.py                  # Validates the final dataset
-│       └── plot_verification.py      # Plots timelines of rockfall events
-├── data/                             # Generated datasets & QGIS exports
-│   ├── geometry_dataset.csv          # Exported from QGIS (Slope, Ruggedness, etc.)
-│   └── geometry_dataset.qmd          # QGIS metadata file
-├── results/                          # Output visual plots and heatmaps
-├── notebooks/                        # Exploratory Jupyter Notebooks
-├── requirements.txt                  # Python dependencies
-└── .gitignore
-```
-
-## 🚀 Setup & Execution
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/kaizen105/Rockfall_dataset.git
-   cd Rockfall_dataset
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Run the Data Generation Pipeline (in order):**
-   ```bash
-   python src/data/get_weather_data.py
-   python src/data/create_sensor_data.py
-   python src/data/final_dataset.py
-   ```
-
-4. **Run the Analysis & Validation:**
-   ```bash
-   python src/analysis/check.py
-   python src/analysis/plot_verification.py
-   ```
-   *Analysis scripts will automatically save validation metrics and plots to the `results/` folder.*
+## License
+Released under CC-BY-4.0. You are free to share and adapt this dataset with attribution.
