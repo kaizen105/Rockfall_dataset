@@ -141,6 +141,7 @@ The strongest single predictive correlation in the dataset is `Displacement_Rate
 *(Note the high collinearity between `slope_1` and ruggedness `tri_1` (0.864) for feature importance interpretation).*
 
 ## 7. Known Limitations
+- **Target Leakage Warning:** Sensor readings (`Displacement_Rate_mm_h`, `Vibration_mm_s`) are artificially elevated for 72 hours following any event timestamp; any time-series windowing for model training must strictly exclude rows at or after the event hour to avoid target leakage.
 - Simulated ground truth, not field-validated.
 - **DEM Resolution limitation:** The NASA SRTM GL1 30m resolution is coarse relative to individual rockfall/boulder-scale features. Higher-resolution LiDAR was not openly available for this region.
 - Simplified 1D physics (Infinite Slope only, no 3D/groundwater/fracture modeling).
