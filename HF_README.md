@@ -23,6 +23,10 @@ dataset_info:
     dtype: float64
   - name: tri_1
     dtype: float64
+  - name: profile_curvature
+    dtype: float64
+  - name: planform_curvature
+    dtype: float64
   - name: temperature_2m
     dtype: float64
   - name: precipitation
@@ -54,7 +58,7 @@ It is designed for research into rockfall early-warning systems, anomaly detecti
 ## 2. What Is Real vs Simulated
 | Column | Status | Source |
 | :--- | :--- | :--- |
-| `elev_1`, `slope_1`, `aspect_1`, `rough_1`, `tri_1` | **Real** | DEM via OpenTopography, processed in QGIS |
+| `elev_1`, `slope_1`, `aspect_1`, `rough_1`, `tri_1`, `profile_curvature`, `planform_curvature` | **Real** | DEM via OpenTopography, processed in QGIS / Python |
 | `temperature_2m`, `precipitation`, `windspeed_10m`, `shortwave_radiation` | **Real** | Historical HOURLY weather via Open-Meteo API |
 | Weather Downscaling | **Physics-derived** | Math-based adjustments (lapse rates, orographic formulas) |
 | `FS` (Factor of Safety) | **Physics-derived** | Computed hourly via Infinite Slope Stability model |
