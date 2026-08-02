@@ -96,7 +96,8 @@ The strongest single predictive correlation in the dataset is `Displacement_Rate
 - Simplified 1D physics (Infinite Slope only, no 3D/groundwater/fracture modeling).
 - **Noamundi-specific field measurements missing:** No geomechanical data (UCS, cohesion, friction angle from real site testing) is available. This is a known constraint for Indian mining regions generally, requiring the use of typical ranges from literature (Hoek & Bray).
 - Static 270° wind direction assumption in the rainfall downscaling model (does not reflect actual seasonal monsoon direction shifts).
-- Event count governed by Poisson process rather than purely FS-emergent.
+- **Poisson Event Floor Bias:** Event count is governed by an artificial `max(1, poisson(5))` floor. Every single location is mathematically forced to have at least 1 event. No location is perfectly stable (0 events). This is a statistical bias designed for dataset richness but deviates from real-world regional hazard distributions.
+- **Undifferentiated Triggers:** Both rainfall-driven events (80%) and random 'dry' rockfall events (20%) are logged identically as `Rockfall_Event = 1`. The lack of a specific `Trigger_Type` column prevents easily isolating the 20% random-trigger subset for cleaner, non-circular validation.
 - Weak whole-dataset correlation numbers requiring event-windowed temporal analysis to see the real signal.
 - Class imbalance (2,436 positive events across 13.14M rows).
 - Weather is downscaled from 25 real fetches, not independently measured at all 500 locations.
