@@ -20,11 +20,11 @@ It is designed for research into rockfall early-warning systems, anomaly detecti
 ## 3. Full Methodology
 
 ### Terrain Extraction
-DEM data for the Noamundi region was obtained via OpenTopography and processed in QGIS to extract Elevation, Slope, Aspect, Roughness, and Ruggedness (TRI). 500 monitoring locations were selected by generating random points constrained within a steep-zone polygon mask (slope ≥ 15°). 
-*(Note: Unconstrained random sampling was originally attempted but failed, yielding a mean slope of ~5.85°, which made the physics engine inert. Masking forced the mean slope up to 16.15°, enabling realistic failure dynamics).*
+DEM data for the Noamundi region was obtained via OpenTopography (NASA SRTM GL1 30m resolution) and processed in QGIS to extract Elevation, Slope, Aspect, Roughness, and Ruggedness (TRI). 500 monitoring locations were selected by pure uniform random sampling (using `random_state=42`) constrained within a steep-zone polygon mask (slope ≥ 15°). 
+*(Note: Unconstrained random sampling was originally attempted but yielded a mean slope of ~5.85°, causing the Factor of Safety to always exceed 2.0. This made the physics engine inert with zero possible failures. Applying the ≥15° mask was empirically necessary—not an arbitrary choice—raising the mean slope to 16.15° and enabling realistic failure dynamics).*
 
 ### Weather & Microclimate Downscaling
-Historical hourly weather was pulled from the Open-Meteo API. Due to API rate limits across 500 locations and because Open-Meteo's native grid resolution (~9-11km) makes per-point fetches largely redundant, the 500 locations were clustered into 25 KMeans macro-regions. The API fetched true hourly data for the 25 centroids, which was then mathematically downscaled to the 500 individual locations:
+Historical hourly weather (exact date range: **Jan 1, 2021 – Dec 31, 2023**) was pulled from the Open-Meteo API for four precise variables: `temperature_2m`, `precipitation`, `windspeed_10m`, and `shortwave_radiation`. Due to API rate limits across 500 locations, and because Open-Meteo's native grid resolution (~9-11km) makes per-point fetches largely redundant, the 500 locations were clustered into 25 KMeans macro-regions. The API fetched true hourly data for the 25 centroids. This was then mathematically downscaled to the 500 individual locations step-by-step:
 - **Temperature Lapse Rate:** `-0.0065 * elev_diff` (-6.5°C per 1000m elevation difference).
 - **Orographic Rain:** `precipitation * (1.0 + 0.05 * cos(aspect - 270°) * sin(slope))`. *(Note: 270° assumes a static Westerly prevailing wind, which is a simplification that does not reflect actual seasonal monsoon shifts in this region).*
 - **Solar Radiation:** `shortwave_radiation * (1.0 + 0.10 * cos(aspect - 180°) * sin(slope))`.
@@ -33,17 +33,22 @@ Historical hourly weather was pulled from the Open-Meteo API. Due to API rate li
 The Factor of Safety (FS) is computed hourly using the Infinite Slope Stability model (Skempton and DeLory), the identical single-point foundation used in tools like SHALSTAB and TRIGRS:
 `FS = [ c + (γ · z · cos²β - u) · tanφ ] / [ γ · z · sinβ · cosβ ]`
 - `β` (slope angle): 15° to 34° (real DEM)
-- `γ` (unit weight): 20 to 25 kN/m³ (literature)
+- `γ` (unit weight): 20 to 25 kN/m³ (Typical ranges for weathered lateritic/iron-ore soils in open-pit mining contexts, per Hoek, E. & Bray, J.W., *Rock Slope Engineering*)
 - `z` (depth): 1.0 to 2.0 m (literature)
-- `φ` (friction angle): 30° to 40° (literature)
-- `c` (cohesion): 4 to 10 kPa (literature)
-- `u` (pore pressure): `9.81 * min(1.0, rain_72h / 100.0) * z`
-*(Note: The `100.0` cumulative rainfall threshold for full soil saturation is a heuristically tuned value designed to simulate severe monsoonal conditions, rather than a field-measured geohydrological property. Furthermore, this 1D model does NOT account for 3D stress, groundwater routing, or joint/fracture mechanics).*
+- `φ` (friction angle): 30° to 40° (Typical ranges, per Hoek & Bray)
+- `c` (cohesion): 4 to 10 kPa (Typical ranges, per Hoek & Bray)
+- `γ_w` (unit weight of water): 9.81 kN/m³ (Standard constant)
+- `u` (pore pressure): `γ_w * min(1.0, rain_72h / 100.0) * z`
+*(Note: The `100.0` mm cumulative rainfall threshold for full soil saturation is a heuristic engineering assumption, not field-calibrated. It is logically designed to bring pore pressure to its physical maximum under sustained monsoon-intensity rainfall over a 72-hour window. Furthermore, this 1D model does NOT account for 3D stress, groundwater routing, or joint/fracture mechanics).*
 
 ### Sensor & Event Simulation
-- **Events:** Event count follows a Poisson process (λ = 5). 80% of events are weighted toward hours of critical instability (FS ≤ 1.3). 20% are placed at completely random hours (representing non-rainfall triggers).
-- **Displacement Creep:** `0.15 / (max(FS, 1.01) - 1.0)` gated strictly on hours where `FS ≤ 1.3`. 
-- **Vibration:** Event spikes are modeled as `γ * z * sin(β) * U(0.4, 0.6) * exp(-0.05*t)`.
+- **Events:** Event count follows a Poisson process (λ = 5). *(Note: Poisson λ=5 is an arbitrary modeling choice to ensure a realistic sparse class imbalance; it is not derived from a measured regional event-rate).* 
+  - 80% of events are triggered during hours of critical instability (FS ≤ 1.3). **Crucially, the probability of failure at any specific hour is exponentially weighted by the severity of the instability** (`P ∝ exp(5 * (1.3 - FS))`). This means a severe hour with FS=0.9 is mathematically much more likely to trigger the rockfall than a borderline hour with FS=1.29.
+  - 20% are placed at completely random hours. **This 20% random trigger explicitly represents real, literature-recognized non-rainfall rockfall triggers** (e.g., root wedging, thermal expansion, mining-blast-induced fracture), ensuring the dataset models unpredictable failure modes alongside rainfall-driven failures.
+- **Infiltration Lag:** A random lag of 8 to 16 hours is applied between the 72-hour rainfall accumulation and its effect on pore pressure to simulate realistic soil infiltration delays.
+- **Displacement Creep:** `0.15 / (max(FS, 1.01) - 1.0)` gated strictly on hours where `FS ≤ 1.3`. Base displacement also includes a 24-hour sine-wave thermal cycle (amplitude 0.005 mm/h peaking at 15:00) to model daily rock expansion.
+- **Post-Event Decay:** When an event occurs, displacement follows an exponential decay curve (`5 * exp(-0.1 * t)`) over the following 72-hour window, simulating the physical settling of a detached rock mass.
+- **Vibration:** Event spikes are modeled as `γ * z * sin(β) * U(0.4, 0.6) * exp(-0.05*t)`. Base vibration also incorporates daily mining blast spikes (5-12 mm/s) occurring randomly between 14:00 and 16:00, characteristic of active open-pit mining operations.
 
 ## 4. Development History / Changelog
 1. **90° QGIS Slope Bug:** QGIS raster processing initially produced 90° slope artifacts at boundaries; fixed by clipping the raster.
@@ -74,6 +79,8 @@ The strongest single predictive correlation in the dataset is `Displacement_Rate
 | `aspect_1` | -0.001 | -0.003 | 0.003 | -0.003 |
 | `rough_1` | 0.094 | 0.019 | 0.000 | 0.000 |
 | `tri_1` | -0.588 | 0.032 | 0.004 | -0.003 |
+| `profile_curvature` | -0.019 | -0.002 | 0.000 | 0.000 |
+| `planform_curvature` | -0.001 | 0.001 | -0.001 | -0.000 |
 | **Target Cross-Correlations** | | | | |
 | `FS` | 1.000 | -0.017 | -0.004 | 0.002 |
 | `Displacement_Rate_mm_h` | -0.017 | 1.000 | 0.199 | 0.317 |
@@ -85,8 +92,9 @@ The strongest single predictive correlation in the dataset is `Displacement_Rate
 
 ## 7. Known Limitations
 - Simulated ground truth, not field-validated.
+- **DEM Resolution limitation:** The NASA SRTM GL1 30m resolution is coarse relative to individual rockfall/boulder-scale features. Higher-resolution LiDAR was not openly available for this region.
 - Simplified 1D physics (Infinite Slope only, no 3D/groundwater/fracture modeling).
-- No geomechanical data (UCS, cohesion, friction angle from real site testing) because open geotechnical data is lacking for Indian mining regions.
+- **Noamundi-specific field measurements missing:** No geomechanical data (UCS, cohesion, friction angle from real site testing) is available. This is a known constraint for Indian mining regions generally, requiring the use of typical ranges from literature (Hoek & Bray).
 - Static 270° wind direction assumption in the rainfall downscaling model (does not reflect actual seasonal monsoon direction shifts).
 - Event count governed by Poisson process rather than purely FS-emergent.
 - Weak whole-dataset correlation numbers requiring event-windowed temporal analysis to see the real signal.
@@ -118,3 +126,6 @@ To regenerate this dataset from scratch on your local machine:
    - Run `python src/data/prepare_geometry_500.py` to extract real elevation from QGIS files.
    - Run `python src/data/get_weather_data.py` to fetch clustered hourly Open-Meteo data.
    - Run `python src/data/create_sensor_data.py` to stream 13M rows through the physics engine.
+
+**Important Note on Seeds & Determinism:** Point locations and KMeans clustering are deterministic (using `random_state=42`). However, the final physics/sensor/event generation step (`create_sensor_data.py`) is currently **NOT seeded** globally. It will produce different specific values on every re-run (i.e. identical statistical properties, but different individual numbers). 
+*Recommendation for users:* Either (a) add a fixed global seed (`np.random.seed(42)`) to `create_sensor_data.py` for full reproducibility, or (b) archive the exact dataset version used for any published results, since it cannot be regenerated identically later.
