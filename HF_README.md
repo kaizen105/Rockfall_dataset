@@ -1,3 +1,53 @@
+---
+dataset_info:
+  features:
+  - name: Timestamp
+    dtype: string
+  - name: Location_ID
+    dtype: string
+  - name: Displacement_Rate_mm_h
+    dtype: float64
+  - name: Vibration_mm_s
+    dtype: float64
+  - name: Rockfall_Event
+    dtype: int64
+  - name: FS
+    dtype: float64
+  - name: elev_1
+    dtype: float64
+  - name: slope_1
+    dtype: float64
+  - name: aspect_1
+    dtype: float64
+  - name: rough_1
+    dtype: float64
+  - name: tri_1
+    dtype: float64
+  - name: profile_curvature
+    dtype: float64
+  - name: planform_curvature
+    dtype: float64
+  - name: temperature_2m
+    dtype: float64
+  - name: precipitation
+    dtype: float64
+  - name: windspeed_10m
+    dtype: float64
+  - name: shortwave_radiation
+    dtype: float64
+  splits:
+  - name: train
+    num_bytes: 2646045818
+    num_examples: 12966776
+  download_size: 2646045818
+  dataset_size: 2646045818
+configs:
+- config_name: default
+  data_files:
+  - split: train
+    path: training_dataset.csv
+---
+
 # 🪨 Noamundi Rockfall Simulation Dataset
 
 ![Dataset Size](https://img.shields.io/badge/Dataset_Size-13.14M_Rows-blue)
