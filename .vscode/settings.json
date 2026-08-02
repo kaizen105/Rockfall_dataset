@@ -1,0 +1,7 @@
+{
+    "python.defaultInterpreterPath": "C:\\Users\\yashs\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+    "python.analysis.extraPaths": [
+        "c:\\Rockfall_AI_Project",
+        "c:\\Rockfall_AI_Project\\src\\data"
+    ]
+}
