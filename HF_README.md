@@ -70,7 +70,7 @@ DEM data for the Noamundi region was obtained via OpenTopography and processed i
 *(Note: Unconstrained random sampling was originally attempted but failed, yielding a mean slope of ~5.85°, which made the physics engine inert. Masking forced the mean slope up to 16.15°, enabling realistic failure dynamics).*
 
 ### Weather & Microclimate Downscaling
-Historical hourly weather was pulled from the Open-Meteo API. Due to API rate limits across 500 locations—and because Open-Meteo's native grid resolution (~9-11km) makes per-point fetches largely redundant—the 500 locations were clustered into 25 KMeans macro-regions. The API fetched true hourly data for the 25 centroids, which was then mathematically downscaled to the 500 individual locations:
+Historical hourly weather was pulled from the Open-Meteo API. Due to API rate limits across 500 locations and because Open-Meteo's native grid resolution (~9-11km) makes per-point fetches largely redundant, the 500 locations were clustered into 25 KMeans macro-regions. The API fetched true hourly data for the 25 centroids, which was then mathematically downscaled to the 500 individual locations:
 - **Temperature Lapse Rate:** `-0.0065 * elev_diff` (-6.5°C per 1000m elevation difference).
 - **Orographic Rain:** `precipitation * (1.0 + 0.05 * cos(aspect - 270°) * sin(slope))`. *(Note: 270° assumes a static Westerly prevailing wind, which is a simplification that does not reflect actual seasonal monsoon shifts in this region).*
 - **Solar Radiation:** `shortwave_radiation * (1.0 + 0.10 * cos(aspect - 180°) * sin(slope))`.
