@@ -1,6 +1,6 @@
 # 🪨 Noamundi Rockfall Simulation Dataset
 
-![Dataset Size](https://img.shields.io/badge/Dataset_Size-13.14M_Rows-blue)
+![Dataset Size](https://img.shields.io/badge/Dataset_Size-12.96M_Rows-blue)
 ![Locations](https://img.shields.io/badge/Monitoring_Locations-500-green)
 ![Events](https://img.shields.io/badge/Rockfall_Events-2,436-red)
 
