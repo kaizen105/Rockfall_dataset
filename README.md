@@ -146,5 +146,9 @@ The kinematic engine was validated against the 500 sampled locations to ensure p
 
 ---
 
-## 💻 7. Source Code
-The data generation pipeline and physics engine source code is hosted on GitHub: [https://github.com/kaizen105/Rockfall_dataset](https://github.com/kaizen105/Rockfall_dataset).
+## 💻 7. Dataset & Resources
+The complete dataset is hosted on Hugging Face: [kaizen105/Rockfall_dataset](https://huggingface.co/datasets/kaizen105/Rockfall_dataset)
+
+**External References:**
+- **Terrain Data:** NASA SRTM GL1 30m via [OpenTopography](https://opentopography.org/)
+- **Weather Data:** Historical hourly weather via [Open-Meteo](https://open-meteo.com/)
