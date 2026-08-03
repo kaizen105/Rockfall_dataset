@@ -126,9 +126,9 @@ To simulate downstream hazard, the 2D kinematics engine uses discrete Euler inte
 ## 📈 6. Validation Analysis
 
 - **Event-Window Correlation:** Average pre-event windows show a genuine sustained climb in displacement (~0.025 to ~0.13 mm/h over 72 hours), compared to a flat ~0.015 mm/h for random non-event windows. 
-- **Truncation Check:** 5 out of 499 valid locations (1.0%) reached the boundary of their extracted DEM raster array and were cut off mid-flight (explicitly flagged via `Profile_Clipped = True`). The vast majority of boulders naturally halted due to simulated physical friction rather than hitting array boundary edges.
-- **Energy Mass Scaling:** Verified perfectly linear scaling across masses. At identical locations, the 2000kg boulder yields exactly 4.00x the kinetic energy of the 500kg boulder, and the 10000kg boulder yields exactly 20.00x, mathematically confirming runout distance is correctly mass-independent in the kinematics engine.
 - **Invalid Profile Flagging:** The `Profile_Valid` flag successfully caught 1/500 locations (`LOC_65`) that touched a DEM NoData boundary at initialization, zeroing out its resulting metrics.
+- **Truncation Check:** Of the remaining 499 valid locations, 5 (1.0%) reached the physical boundary of their extracted DEM raster array mid-flight and were cut off (explicitly flagged via `Profile_Clipped = True`). The vast majority of boulders naturally halted due to simulated physical friction rather than hitting array boundary edges.
+- **Energy Mass Scaling:** Verified perfectly linear scaling across masses. At identical locations, the 2000kg boulder yields exactly 4.00x the kinetic energy of the 500kg boulder, and the 10000kg boulder yields exactly 20.00x, mathematically confirming runout distance is correctly mass-independent in the kinematics engine.
 
 ---
 
