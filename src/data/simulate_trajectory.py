@@ -115,9 +115,14 @@ def simulate_rockfall(s_arr, z_arr, mass):
     
     trajectory_log = []
     step_idx = 0
+    exit_reason = "natural_stop"
     
     while time < MAX_TIME:
         if x >= max_s:
+            if len(s_arr) == PROFILE_MAX_STEPS:
+                exit_reason = "reached_profile_end"
+            else:
+                exit_reason = "dem_edge_nan"
             break
             
         ground_z = np.interp(x, s_arr, z_arr)
@@ -136,6 +141,7 @@ def simulate_rockfall(s_arr, z_arr, mass):
                 
                 length = np.hypot(dx, dz)
                 if length == 0:
+                    exit_reason = "degenerate_geometry"
                     break
                     
                 tangent = np.array([dx, dz]) / length
@@ -146,20 +152,23 @@ def simulate_rockfall(s_arr, z_arr, mass):
                 v_in_n = np.dot(vi, normal)
                 v_in_t = np.dot(vi, tangent)
                 
-                v_out_n = -RN * v_in_n
-                v_out_t = RT * v_in_t
-                
-                if abs(v_out_n) < MIN_BOUNCE_VELOCITY:
-                    state = "SLIDING"
-                    z = ground_z_new
-                    x = x_new
-                    vx = tangent[0] * v_out_t
-                    vz = tangent[1] * v_out_t
+                if v_in_n >= 0:
+                    x, z, vz = x_new, z_new, vz_new
                 else:
-                    v_out = v_out_n * normal + v_out_t * tangent
-                    vx, vz = v_out[0], v_out[1]
-                    z = ground_z_new + 0.01
-                    x = x_new
+                    v_out_n = -RN * v_in_n
+                    v_out_t = RT * v_in_t
+                    
+                    if abs(v_out_n) < MIN_BOUNCE_VELOCITY:
+                        state = "SLIDING"
+                        z = ground_z_new
+                        x = x_new
+                        vx = tangent[0] * v_out_t
+                        vz = tangent[1] * v_out_t
+                    else:
+                        v_out = v_out_n * normal + v_out_t * tangent
+                        vx, vz = v_out[0], v_out[1]
+                        z = ground_z_new + 0.01
+                        x = x_new
             else:
                 x, z, vz = x_new, z_new, vz_new
                 
@@ -206,7 +215,8 @@ def simulate_rockfall(s_arr, z_arr, mass):
             'Elevation_z_m': round(z, 2),
             'Velocity_x_mps': round(vx, 3),
             'Velocity_z_mps': round(vz, 3),
-            'Kinetic_Energy_J': round(ke, 2)
+            'Kinetic_Energy_J': round(ke, 2),
+            'State': state
         })
         
         max_x = max(max_x, x)
@@ -216,7 +226,7 @@ def simulate_rockfall(s_arr, z_arr, mass):
         time += DT
         step_idx += 1
         
-    return trajectory_log, max_x, max_h, max_ke
+    return trajectory_log, max_x, max_h, max_ke, exit_reason
 
 def main():
     print("Loading DEM...")
@@ -272,8 +282,10 @@ def main():
             summary_results.append(loc_summary)
             continue
         
+        exit_reason_final = "natural_stop"
         for mass in MASSES:
-            traj_log, runout, bounce, ke = simulate_rockfall(s_arr, z_arr, mass)
+            traj_log, runout, bounce, ke, exit_reason = simulate_rockfall(s_arr, z_arr, mass)
+            exit_reason_final = exit_reason
             
             # Attach location ID to trajectory rows
             for t in traj_log:
@@ -287,6 +299,7 @@ def main():
             
         loc_summary['Max_Runout_m'] = round(max_run, 2)
         loc_summary['Max_Bounce_Height_m'] = round(max_bounce, 2)
+        loc_summary['Profile_Clipped'] = (exit_reason_final == "dem_edge_nan")
         
         summary_results.append(loc_summary)
         

@@ -4,9 +4,12 @@ import rasterio
 from pyproj import Transformer
 import os
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DATA_DIR = os.path.join(BASE_DIR, "data_v2")
+
 def fix_curvature():
     print("--- 1. Computing curvature from DEM ---")
-    dem_path = r"c:\Rockfall_AI_Project\data_v2\rasters\dem_reprojected_utm45n.tif"
+    dem_path = os.path.join(DATA_DIR, "rasters", "dem_reprojected_utm45n.tif")
     with rasterio.open(dem_path) as src:
         dem = src.read(1).astype(float)
         transform = src.transform
@@ -51,7 +54,7 @@ def fix_curvature():
     planform_curv[1:-1, 1:-1][mask] = 2 * (D[mask]*H[mask]**2 + E[mask]*G[mask]**2 - F[mask]*G[mask]*H[mask]) / G2_H2
 
     print("--- 2. Reprojecting coordinates and sampling ---")
-    spatial_path = r"c:\Rockfall_AI_Project\data_v2\spatial_metadata.csv"
+    spatial_path = os.path.join(DATA_DIR, "spatial_metadata.csv")
     df_spatial = pd.read_csv(spatial_path)
 
     transformer = Transformer.from_crs("EPSG:4326", crs, always_xy=True) 
@@ -71,7 +74,7 @@ def fix_curvature():
     df_spatial.to_csv(spatial_path, index=False)
 
     print("--- 3. Updating geometry_dataset_500.csv ---")
-    geom_path = r"c:\Rockfall_AI_Project\data_v2\geometry_dataset_500.csv"
+    geom_path = os.path.join(DATA_DIR, "geometry_dataset_500.csv")
     df_geom = pd.read_csv(geom_path)
     if 'Location_ID' in df_geom.columns:
         mapping_prof = dict(zip(df_spatial['Location_ID'], df_spatial['profile_curvature']))
@@ -84,7 +87,7 @@ def fix_curvature():
     df_geom.to_csv(geom_path, index=False)
 
     print("--- 4. Updating final_master_dataset.csv (chunked) ---")
-    master_path = r"c:\Rockfall_AI_Project\data_v2\final_master_dataset.csv"
+    master_path = os.path.join(DATA_DIR, "final_master_dataset.csv")
     mapping_prof = dict(zip(df_spatial['Location_ID'], df_spatial['profile_curvature']))
     mapping_plan = dict(zip(df_spatial['Location_ID'], df_spatial['planform_curvature']))
 
