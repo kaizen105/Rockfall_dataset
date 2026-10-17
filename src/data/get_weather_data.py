@@ -19,7 +19,7 @@ END_DATE = "2023-12-31"
 NUM_CLUSTERS = 25
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DATA_DIR = os.path.join(BASE_DIR, "data_v2")
+DATA_DIR = os.path.join(BASE_DIR, "data", "inputs")
 os.makedirs(DATA_DIR, exist_ok=True)
 
 GEOMETRY_FILE = os.path.join(DATA_DIR, "geometry_dataset_500.csv")

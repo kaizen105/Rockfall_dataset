@@ -13,8 +13,8 @@ import os
 import argparse
 import pandas as pd
 
-def process_training_dataset(input_path: str = "data_release_v1b/final_master_dataset.csv",
-                             output_path: str = "data_release_v1b/training_dataset.csv") -> None:
+def process_training_dataset(input_path: str = "data/current/v1d_s1/final_master_dataset.csv",
+                             output_path: str = "data/current/v1d_s1/training_dataset.csv") -> None:
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"Input master dataset not found: {input_path}")
 
@@ -62,8 +62,8 @@ def process_training_dataset(input_path: str = "data_release_v1b/final_master_da
 
 def main():
     parser = argparse.ArgumentParser(description="Create Training Dataset with preserved contiguity")
-    parser.add_argument("--input-path", type=str, default="data_release_v1b/final_master_dataset.csv", help="Input master dataset path")
-    parser.add_argument("--output-path", type=str, default="data_release_v1b/training_dataset.csv", help="Output training dataset path")
+    parser.add_argument("--input-path", type=str, default="data/current/v1d_s1/final_master_dataset.csv", help="Input master dataset path")
+    parser.add_argument("--output-path", type=str, default="data/current/v1d_s1/training_dataset.csv", help="Output training dataset path")
     args = parser.parse_args()
 
     process_training_dataset(input_path=args.input_path, output_path=args.output_path)

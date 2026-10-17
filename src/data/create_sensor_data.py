@@ -56,7 +56,7 @@ WRITE_MAX_ATTEMPTS = 3        # retry attempts for file writes
 WRITE_RETRY_SLEEP_S = 1.0     # sleep between retries in seconds
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DEFAULT_DATA_DIR = os.path.join(BASE_DIR, "data_v2")
+DEFAULT_DATA_DIR = os.path.join(BASE_DIR, "data", "inputs")
 GEOMETRY_FILE = os.path.join(DEFAULT_DATA_DIR, "geometry_dataset_500.csv")
 WEATHER_FILE = os.path.join(DEFAULT_DATA_DIR, "weather_dataset.csv")
 
@@ -372,7 +372,7 @@ def process_location(df_loc: pd.DataFrame, loc_id: str, traits: dict, loc_params
 
     return df_loc, meta_record
 
-def generate_sensor_data(output_dir: str = "data_release_v1d_s1",
+def generate_sensor_data(output_dir: str = "data/current/v1d_s1",
                          seed: int = None,
                          max_locations: int = None) -> str:
     os.makedirs(output_dir, exist_ok=True)
@@ -594,7 +594,7 @@ def generate_sensor_data(output_dir: str = "data_release_v1d_s1",
 
 def main():
     parser = argparse.ArgumentParser(description="Realistic Rockfall Synthetic Sensor Data Generator V1d")
-    parser.add_argument("--output-dir", type=str, default="data_release_v1d_s1", help="Output directory")
+    parser.add_argument("--output-dir", type=str, default="data/current/v1d_s1", help="Output directory")
     parser.add_argument("--seed", type=int, default=None, help="Random seed (defaults to random draw)")
     parser.add_argument("--max-locations", type=int, default=None, help="Max locations to process")
     args = parser.parse_args()
