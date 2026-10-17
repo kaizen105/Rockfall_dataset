@@ -1,5 +1,43 @@
+# Python environments & caches
 venv/
+env/
 __pycache__/
+*.py[cod]
+*$py.class
 .ipynb_checkpoints/
+
+# IDE & Editor configurations (contain machine-specific absolute paths)
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Large datasets & generated releases (hosted externally on Hugging Face / Kaggle)
 data_v1/
 data_v2/
+data_release_*/*
+!data_release_v1d_s1/location_metadata.csv
+
+# Ignore large/generated CSVs, whitelist essential small metadata & inputs
+*.csv
+!spatial_metadata.csv
+!data_release_v1d_s1/location_metadata.csv
+!qgis_raw_data/*.csv
+!data/README.md
+
+# Intermediate generation parts & checkpoints
+*/parts/
+*_rng.pkl
+part_*.csv
+
+# Scratch analysis files & temporary logs
+scratch/
+*.log
+task-*.log
+temp/
+tmp/
+
+# OS-specific clutter
+Thumbs.db
+Desktop.ini
+.DS_Store
