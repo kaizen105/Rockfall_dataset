@@ -1,50 +1,72 @@
-import pandas as pd
+"""
+Training Dataset Preparation Module.
+
+Updates in V1:
+- Retains all rows and continuous timestamps (no row deletion).
+- Ensures 'post_event_window' column is present (int8) for training exclusion/masking.
+- Drops geographic artifacts ['X', 'Y', 'rand_point', 'fid', 'DN'].
+- Downcasts dtypes (float32 / int8 / category).
+- Reads and writes in chunks to maintain low memory footprint.
+"""
+
 import os
+import argparse
+import pandas as pd
+
+def process_training_dataset(input_path: str = "data/current/v1d_s1/final_master_dataset.csv",
+                             output_path: str = "data/current/v1d_s1/training_dataset.csv") -> None:
+    if not os.path.exists(input_path):
+        raise FileNotFoundError(f"Input master dataset not found: {input_path}")
+
+    print(f"Loading master dataset from '{input_path}'...")
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    if os.path.exists(output_path):
+        os.remove(output_path)
+
+    chunksize = 1_000_000
+    first_chunk = True
+    total_rows = 0
+    post_event_rows = 0
+
+    junk_cols = ['X', 'Y', 'rand_point', 'fid', 'DN']
+
+    for chunk in pd.read_csv(input_path, chunksize=chunksize):
+        # 1. Drop geographic artifacts if present
+        cols_to_drop = [c for c in junk_cols if c in chunk.columns]
+        if cols_to_drop:
+            chunk = chunk.drop(columns=cols_to_drop)
+
+        # 2. Check post_event_window presence
+        if "post_event_window" not in chunk.columns:
+            raise ValueError("Required column 'post_event_window' is missing from master dataset!")
+
+        post_event_rows += int(chunk["post_event_window"].sum())
+
+        # 3. Downcast dtypes
+        for col in chunk.select_dtypes(include=["float64"]).columns:
+            chunk[col] = chunk[col].astype("float32")
+        for col in ["Rockfall_Event", "post_event_window"]:
+            if col in chunk.columns:
+                chunk[col] = chunk[col].astype("int8")
+        if "Location_ID" in chunk.columns:
+            chunk["Location_ID"] = chunk["Location_ID"].astype("category")
+
+        # 4. Stream to disk (preserving all rows)
+        mode = 'w' if first_chunk else 'a'
+        chunk.to_csv(output_path, mode=mode, index=False, header=first_chunk)
+        first_chunk = False
+        total_rows += len(chunk)
+
+    print(f"Successfully created clean training dataset: '{output_path}'")
+    print(f"Total rows: {total_rows:,} (all rows preserved; post-event window rows: {post_event_rows:,}).")
 
 def main():
-    input_path = "data_v2/final_master_dataset.csv"
-    output_path = "data_v2/training_dataset.csv"
-    
-    print(f"Loading final master dataset from {input_path}...")
-    # Read the full dataset
-    df = pd.read_csv(input_path)
-    print(f"Loaded {len(df)} rows.")
+    parser = argparse.ArgumentParser(description="Create Training Dataset with preserved contiguity")
+    parser.add_argument("--input-path", type=str, default="data/current/v1d_s1/final_master_dataset.csv", help="Input master dataset path")
+    parser.add_argument("--output-path", type=str, default="data/current/v1d_s1/training_dataset.csv", help="Output training dataset path")
+    args = parser.parse_args()
 
-    # 1. Drop geographic artifacts to prevent geographic memorization
-    junk_cols = ['X', 'Y', 'rand_point', 'fid', 'DN']
-    cols_to_drop = [c for c in junk_cols if c in df.columns]
-    if cols_to_drop:
-        print(f"Dropping geographic artifacts: {cols_to_drop}")
-        df = df.drop(columns=cols_to_drop)
-
-    # 2. Mask out 72-hour post-event leakage
-    print("Identifying 72-hour post-event target leakage windows...")
-    
-    # Create a boolean series where events are True, everything else is NA
-    is_event = (df['Rockfall_Event'] == 1)
-    df['Leakage_Mask'] = is_event.replace(False, pd.NA)
-
-    # Forward fill the True values up to 72 hours (rows) per location
-    print("Applying 72-hour forward mask per location...")
-    df['Leakage_Mask'] = df.groupby('Location_ID')['Leakage_Mask'].ffill(limit=72)
-    
-    # Fill remaining NaNs with False
-    df['Leakage_Mask'] = df['Leakage_Mask'].fillna(False)
-    
-    # The event row itself should be kept for training! It's only the 72 hours *after* it that are contaminated.
-    # So we remove the actual event rows from the mask.
-    df['Leakage_Mask'] = df['Leakage_Mask'] & ~is_event
-
-    num_leakage_rows = df['Leakage_Mask'].sum()
-    print(f"Found {num_leakage_rows} target leakage rows to drop.")
-
-    # 3. Filter and save
-    df_clean = df[~df['Leakage_Mask']].drop(columns=['Leakage_Mask'])
-    print(f"Cleaned dataset size: {len(df_clean)} rows.")
-
-    print(f"Saving to {output_path}...")
-    df_clean.to_csv(output_path, index=False)
-    print("Successfully created the clean, leakage-free training dataset!")
+    process_training_dataset(input_path=args.input_path, output_path=args.output_path)
 
 if __name__ == "__main__":
     main()
