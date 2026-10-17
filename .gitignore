@@ -14,13 +14,15 @@ __pycache__/
 
 # Large datasets & generated releases (hosted externally on Hugging Face / Kaggle)
 data_v1/
-data_v2/
+data_v2/*
 data_release_*/*
 !data_release_v1d_s1/location_metadata.csv
 
 # Ignore large/generated CSVs, whitelist essential small metadata & inputs
 *.csv
 !spatial_metadata.csv
+!data_v2/spatial_metadata.csv
+!data_v2/geometry_dataset_500.csv
 !data_release_v1d_s1/location_metadata.csv
 !qgis_raw_data/*.csv
 !data/README.md
